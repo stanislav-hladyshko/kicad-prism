@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.security import AuthenticatedUser, require_viewer
+from app.services import pipeline_service
 from app.services.workspace_service import workspace
 from app.api._helpers import _row_to_project
 
@@ -33,3 +34,17 @@ async def get_workspace_bootstrap(
         "systems": data.get("systems", []),
         "version": version,
     }
+
+
+@router.get("/pipeline")
+async def get_workspace_pipeline(user: AuthenticatedUser = Depends(require_viewer)):
+    """Where every board stands, from the repositories that commit ``.prism-pipeline.json``.
+
+    Only the projects the caller's role sees are tied to rows; the release sign-off
+    column is read from Release Studio for those projects.
+    """
+    def build() -> Dict[str, Any]:
+        projects = workspace.get_bootstrap_data(user.role)["projects"]
+        return {"pipelines": pipeline_service.pipelines(projects, pipeline_service.default_seams())}
+
+    return await asyncio.to_thread(build)
