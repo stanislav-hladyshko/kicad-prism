@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useState, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import type { User, AuthConfig } from './types/auth';
 import { Button } from '@/components/ui/button';
 import { Toaster } from 'sonner';
@@ -29,6 +29,9 @@ const Workspace = lazy(() =>
 );
 const ProjectDetailPage = lazy(() =>
     import('./pages/ProjectDetailPage').then((module) => ({ default: module.ProjectDetailPage }))
+);
+const PipelinePage = lazy(() =>
+    import('./pages/PipelinePage').then((module) => ({ default: module.PipelinePage }))
 );
 
 function RouteFallback() {
@@ -337,6 +340,9 @@ function App() {
                                         <Search className="h-3.5 w-3.5" />
                                         {IS_APPLE_PLATFORM ? '⌘K' : 'Ctrl K'}
                                     </Button>
+                                    <Button variant="ghost" size="sm" asChild>
+                                        <Link to="/pipeline">Pipeline</Link>
+                                    </Button>
                                     <HelpMenu />
                                     {user && user.email !== 'guest@local' && (
                                         <>
@@ -367,6 +373,7 @@ function App() {
                     path="/project/:projectId"
                     element={suspended(<ProjectDetailPage user={user} />)}
                 />
+                <Route path="/pipeline" element={suspended(<PipelinePage />)} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             </div>
