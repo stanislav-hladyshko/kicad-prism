@@ -523,6 +523,13 @@ class Settings(PipelineSettings, DesignBundleSettings, SimStudioSettings):
         le=86400,
         description="Background Git fetch interval per repository; 0 disables automatic fetch.",
     )
+    PRISM_AUTO_SYNC_FAST_FORWARD: bool = Field(
+        default=False,
+        description=(
+            "Background refresh runs a full Sync (fast-forward the checked-out branch when safe) "
+            "instead of a fetch, so the workspace shows the branch head without a manual Sync."
+        ),
+    )
 
     PRISM_JOB_LEASE_SECONDS: int = Field(
         default=30,
