@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ReleaseStudioPanel } from "@/components/release-studio/ReleaseStudioPanel";
 import { useSimStudioAvailable } from "@/components/sim-studio/use-sim-studio-available";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { ArrowLeft, FileText, History, Box, FolderOpen, ChevronLeft, ChevronRight, GitBranch, RotateCcw, PlayCircle, RefreshCw, Menu, Settings, ShieldCheck, ExternalLink, Link2, FlaskConical } from "lucide-react";
+import { ArrowLeft, FileText, History, Box, FolderOpen, ChevronLeft, ChevronRight, GitBranch, RotateCcw, PlayCircle, RefreshCw, Menu, Settings, ShieldCheck, ExternalLink, Link2, FlaskConical, ListChecks } from "lucide-react";
 import { fetchApi, fetchJson, readApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { throwIfJobFailed, watchPrismJob } from "@/lib/jobs";
@@ -27,6 +27,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { projectLastUpdated } from "@/lib/project-dates";
 import { HelpMenu } from "@/features/bug-report/help-menu";
 import { LibraryUsageButton } from "@/features/library-usage/library-usage-button";
+import { useProjectPipelines } from "@/features/pipeline/pipeline-api";
+import { PipelineBar } from "@/features/pipeline/pipeline-bar";
+import { PipelinePanel } from "@/features/pipeline/pipeline-panel";
 
 const AssetsPortal = lazy(() =>
     import("@/components/assets-portal").then((module) => ({ default: module.AssetsPortal }))
@@ -99,6 +102,7 @@ function sectionFromSearchParams(searchParams: URLSearchParams): ProjectSection 
     const section = searchParams.get("section");
     if (
         section === "history"
+        || section === "pipeline"
         || section === "visualizers"
         || section === "assets"
         || section === "documentation"
@@ -125,6 +129,11 @@ const NAV_ITEMS = [
 // Shown only when the backend serves Simulation Studio (PRISM_SIM_STUDIO_ENABLED).
 const SIM_NAV_ITEM = { id: "simulation-studio" as ProjectSection, label: "Simulation Studio", icon: FlaskConical };
 const NAV_ITEMS_WITH_SIM = NAV_ITEMS.flatMap((item) => (item.id === "release-studio" ? [item, SIM_NAV_ITEM] : [item]));
+
+// Shown only for a board its repository's .prism-pipeline.json covers.
+const PIPELINE_NAV_ITEM = { id: "pipeline" as ProjectSection, label: "Pipeline", icon: ListChecks };
+const withPipelineItem = (items: typeof NAV_ITEMS) =>
+    items.flatMap((item) => (item.id === "overview" ? [item, PIPELINE_NAV_ITEM] : [item]));
 
 // Closes over nothing in the component.
 const getDisplayName = (project: Project) => {
@@ -165,7 +174,12 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
     const branchError = branchesRead.error?.message ?? null;
     const canMutateProject = canManageProjects(user?.role);
     const simStudioAvailable = useSimStudioAvailable();
-    const navItems = simStudioAvailable ? NAV_ITEMS_WITH_SIM : NAV_ITEMS;
+    const { byProject: pipelines } = useProjectPipelines();
+    const pipeline = projectId ? pipelines.get(projectId) ?? null : null;
+    const baseNavItems = simStudioAvailable ? NAV_ITEMS_WITH_SIM : NAV_ITEMS;
+    const navItems = pipeline ? withPipelineItem(baseNavItems) : baseNavItems;
+    const stageParam = Number(searchParams.get("stage"));
+    const focusStage = Number.isInteger(stageParam) && stageParam > 0 ? stageParam : null;
     const canComment = canCommentOnProjects(user?.role);
 
     // Helper function to get display name
@@ -224,6 +238,15 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
         setActiveSection(section);
         const next = new URLSearchParams(searchParams);
         next.set("section", section);
+        setSearchParams(next);
+    };
+
+    // A mark of the header mini graph opens that stage's reasons in the Pipeline section.
+    const handleSelectStage = (stageNumber: number) => {
+        setActiveSection("pipeline");
+        const next = new URLSearchParams(searchParams);
+        next.set("section", "pipeline");
+        next.set("stage", String(stageNumber));
         setSearchParams(next);
     };
 
@@ -465,12 +488,21 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
                 {/* The title takes whatever the header has left; it truncates only when
                     there is genuinely no room, rather than at a fixed pixel cap. */}
                 <div className="min-w-[7rem] flex-1">
-                    <h1 className={cn(
-                        "text-xl font-bold truncate",
-                        activeSection === "visualizers" ? "" : "max-w-[200px] md:max-w-none",
-                    )}>
-                        {project ? getDisplayName(project) : ""}
-                    </h1>
+                    <div className="flex min-w-0 items-center gap-4">
+                        <h1 className={cn(
+                            "text-xl font-bold truncate",
+                            activeSection === "visualizers" ? "" : "max-w-[200px] md:max-w-none",
+                        )}>
+                            {project ? getDisplayName(project) : ""}
+                        </h1>
+                        {pipeline && activeSection !== "visualizers" ? (
+                            <PipelineBar
+                                pipeline={pipeline}
+                                onSelectStage={handleSelectStage}
+                                className="hidden md:flex"
+                            />
+                        ) : null}
+                    </div>
                     <p className={cn(
                         "text-sm text-muted-foreground",
                         activeSection === "visualizers" ? "hidden" : "hidden md:block",
@@ -720,6 +752,17 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
                                         <p className="text-muted-foreground">No README.md found for this project.</p>
                                     )}
                                 </div>
+                            </ErrorBoundary>
+                        </ProjectSectionPanel>
+                    )}
+
+                    {pipeline && visitedSections.has("pipeline") && (
+                        <ProjectSectionPanel
+                            key={`${projectId}:pipeline`}
+                            active={activeSection === "pipeline"}
+                        >
+                            <ErrorBoundary label="the pipeline" resetKeys={[projectId]}>
+                                <PipelinePanel pipeline={pipeline} focusStage={focusStage} />
                             </ErrorBoundary>
                         </ProjectSectionPanel>
                     )}

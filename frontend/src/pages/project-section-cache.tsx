@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 export type ProjectSection =
     | "overview"
+    | "pipeline"
     | "history"
     | "visualizers"
     | "assets"
