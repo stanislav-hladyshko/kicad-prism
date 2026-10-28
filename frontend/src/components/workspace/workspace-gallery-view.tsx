@@ -4,6 +4,8 @@ import { CircuitBoard, Folder } from "lucide-react";
 import { FolderTreeItem, Project } from "@/types/project";
 import { ProjectCard } from "@/components/project-card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useProjectPipelines } from "@/features/pipeline/pipeline-api";
+import { PipelineBar } from "@/features/pipeline/pipeline-bar";
 
 import { FolderActionMenu, ProjectActionMenu } from "./workspace-action-menus";
 import { WorkspaceSectionHeading } from "./workspace-section-heading";
@@ -69,6 +71,11 @@ export function WorkspaceGalleryView({
   const selectCheckboxClass = propertiesPanelOpen
     ? "h-4 w-4 border-2 bg-background/95 shadow-md"
     : "h-5 w-5 border-2 bg-background/95 shadow-md";
+  const { byProject: pipelines } = useProjectPipelines();
+  const statusFor = (projectId: string) => {
+    const pipeline = pipelines.get(projectId);
+    return pipeline ? <PipelineBar pipeline={pipeline} /> : undefined;
+  };
 
   return (
     <div className="space-y-8">
@@ -104,6 +111,7 @@ export function WorkspaceGalleryView({
                   )}
                   <ProjectCard
                     project={project}
+                    status={statusFor(project.id)}
                     dense={propertiesPanelOpen}
                     selected={selectedProjectId === project.id || bulkSelectedProjectIds.has(project.id)}
                     searchQuery={searchQuery}
@@ -201,6 +209,7 @@ export function WorkspaceGalleryView({
                     )}
                     <ProjectCard
                       project={project}
+                      status={statusFor(project.id)}
                       dense={propertiesPanelOpen}
                       selected={selectedProjectId === project.id || bulkSelectedProjectIds.has(project.id)}
                       onClick={() => onSelectProject(project)}

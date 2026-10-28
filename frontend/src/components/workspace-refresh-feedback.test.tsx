@@ -40,7 +40,10 @@ describe("workspace refresh feedback", () => {
     clearWorkspaceDataCache();
     api.fetchJson.mockReset();
     workspaceJson.mockReset();
-    api.fetchJson.mockImplementation((url: unknown, ...rest: unknown[]) => workspaceJson(url, ...rest));
+    // The gallery's pipeline read (features/pipeline) answers empty and leaves the workspace's queue alone.
+    api.fetchJson.mockImplementation((url: unknown, ...rest: unknown[]) => (
+      url === "/api/workspace/pipeline" ? Promise.resolve({ pipelines: [] }) : workspaceJson(url, ...rest)
+    ));
     api.fetchApi.mockReset();
     api.fetchApi.mockReturnValue(new Promise(() => {}));
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));

@@ -19,6 +19,8 @@ interface ProjectCardProps {
     showDelete?: boolean;
     searchQuery?: string;
     actions?: React.ReactNode;
+    /** Where the board stands, e.g. the pipeline mini graph; shown under the description. */
+    status?: React.ReactNode;
 }
 
 // Highlight matched text in search results
@@ -58,6 +60,7 @@ export function ProjectCard({
     showDelete,
     searchQuery = "",
     actions,
+    status,
 }: ProjectCardProps) {
     const navigate = useNavigate();
 
@@ -174,6 +177,7 @@ export function ProjectCard({
                 <p className={cn("line-clamp-2 text-muted-foreground", dense ? "text-xs" : "min-h-[2.5rem] text-sm")}>
                     {highlightMatch(description, searchQuery)}
                 </p>
+                {status ? <div className={dense ? "mt-2" : "mt-3"}>{status}</div> : null}
             </CardContent>
 
             <CardFooter className={cn(
