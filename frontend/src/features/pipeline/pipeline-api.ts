@@ -86,7 +86,7 @@ export function useProjectPipelines() {
 
 /** The latest run of a stage's redo workflow that still needs attention (backend pipeline_rerun_service). */
 export interface StageRun {
-    state: "queued" | "running" | "review" | "draft" | "stopped";
+    state: "queued" | "running" | "review" | "draft" | "stopped" | "token" | "stand";
     text: string;
     url: string;
 }

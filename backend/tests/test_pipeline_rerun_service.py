@@ -14,15 +14,16 @@ PULLS = "/repos/owner/boards/pulls"
 DISPATCH = "/repos/owner/boards/actions/workflows/rerun-stage.yml/dispatches"
 
 
-def run(run_id, board, stage, status="completed", started="2026-10-28T12:00:00Z"):
-    return {"id": run_id, "display_title": f"rerun {board} stage {stage}", "status": status,
+def run(run_id, board, stage, status="completed", started="2026-10-28T12:00:00Z", conclusion=None):
+    return {"id": run_id, "display_title": f"rerun {board} stage {stage}", "status": status, "conclusion": conclusion,
             "run_started_at": started, "html_url": f"https://github.com/owner/boards/actions/runs/{run_id}"}
 
 
 class FakeGitHub:
-    def __init__(self, runs, pulls=None, refuse=None):
+    def __init__(self, runs, pulls=None, refuse=None, failed_steps=None):
         self.runs = runs
         self.pulls = pulls or {}
+        self.failed_steps = failed_steps or {}
         self.refuse = refuse
         self.calls = []
 
@@ -36,6 +37,12 @@ class FakeGitHub:
             return 200, self.pulls.get(params["head"], [])
         if path == DISPATCH:
             return 204, {}
+        if path.startswith("/repos/owner/boards/actions/runs/") and path.endswith("/jobs"):
+            failed = self.failed_steps.get(int(path.split("/")[-2]))
+            steps = [{"name": "Check the inputs", "conclusion": "success"},
+                     {"name": failed or "Repair run, same_circuit, gate", "conclusion": "failure"},
+                     {"name": "Clean up", "conclusion": "success"}]
+            return 200, {"jobs": [{"steps": steps}]}
         raise AssertionError(path)
 
 
@@ -64,6 +71,24 @@ class StageRuns(unittest.TestCase):
     def test_runs_of_other_boards_and_other_workflows_are_ignored(self):
         github = FakeGitHub([run(8, "G40", 6, status="queued"), {"id": 1, "display_title": "build", "status": "queued"}])
         self.assertEqual(reruns.stage_runs("G4", CONFIG, github, now=NOW), {})
+
+    def test_run_stopped_by_a_credential_check_names_what_to_fix(self):
+        reruns._failed_steps.clear()
+        github = FakeGitHub([run(31, "G4", 6, conclusion="failure"), run(32, "G4", 7, conclusion="failure"),
+                             run(33, "G4", 8, conclusion="failure"), run(34, "G4", 9, conclusion="cancelled")],
+                            failed_steps={31: "Claude sign-in", 32: "Stand access"})
+        stages = reruns.stage_runs("G4", CONFIG, github, now=NOW)
+        self.assertEqual({n: s["text"] for n, s in stages.items()}, {
+            6: "токен Claude не діє",
+            7: "немає доступу до стенда",
+            8: "зупинено, без PR",       # failed in the repair run itself
+            9: "зупинено, без PR",       # cancelled: no step to blame
+        })
+        self.assertEqual(stages[6]["url"], "https://github.com/owner/boards/actions/runs/31")
+        # a finished run's steps are read once, not on every poll
+        reruns.stage_runs("G4", CONFIG, github, now=NOW)
+        jobs_reads = [path for _, path, *_ in github.calls if path.endswith("/jobs")]
+        self.assertEqual(len(jobs_reads), 3)
 
     def test_refused_token_says_which_permissions_it_needs(self):
         with self.assertRaises(reruns.RerunError) as refused:

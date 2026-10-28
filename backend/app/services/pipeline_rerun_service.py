@@ -8,7 +8,8 @@ holds no agent credential.
 
 Contract with the workflow: inputs ``board`` and ``stage``; the run is named
 ``rerun <board> stage <n>``; its pull request comes from the branch
-``repair/<board lowercase>-stage<n>-<run id>``.
+``repair/<board lowercase>-stage<n>-<run id>``. A run that fails on a credential check
+stops in a step named ``Claude sign-in`` or ``Stand access``; the row names that cause.
 """
 
 from __future__ import annotations
@@ -28,6 +29,13 @@ REPAIRABLE_STAGES = range(6, 11)  # stages 1-5 change the circuit: a new run fro
 RUN_NAME = re.compile(r"^rerun (\S+) stage (\d+)$")
 RUNS_PAGE = 30
 REQUEST_TIMEOUT_S = 20
+# failed workflow step -> what the stage row says; any other failure stays "зупинено, без PR"
+STEP_CAUSES = {
+    "Claude sign-in": ("token", "токен Claude не діє"),
+    "Stand access": ("stand", "немає доступу до стенда"),
+}
+# the failed step of a finished run never changes: one request per run, not one per poll
+_failed_steps: dict[tuple[str, Any], str] = {}
 
 
 class RerunError(Exception):
@@ -102,6 +110,16 @@ def _check(status: int, body: Any, what: str) -> None:
         raise RerunError(f"GitHub rejected {what} ({status}): {message}", status_code=502)
 
 
+def _failed_step(run: dict[str, Any], config: RerunConfig, http: Http) -> str:
+    key = (config.repo, run.get("id"))
+    if key not in _failed_steps:
+        status, body = http("GET", f"/repos/{config.repo}/actions/runs/{run.get('id')}/jobs", None, None)
+        _check(status, body, "the steps of a stage run")
+        steps = [step for job in body.get("jobs") or [] for step in job.get("steps") or []]
+        _failed_steps[key] = next((str(step.get("name")) for step in steps if step.get("conclusion") == "failure"), "")
+    return _failed_steps[key]
+
+
 def stage_runs(board: str, config: RerunConfig, http: Http, now: Optional[datetime] = None) -> dict[int, dict[str, Any]]:
     """The latest run of every stage of ``board`` that still needs the reader's attention, by stage number.
 
@@ -138,7 +156,9 @@ def stage_runs(board: str, config: RerunConfig, http: Http, now: Optional[dateti
         _check(status, pulls, "the pull request of a stage run")
         pull = pulls[0] if isinstance(pulls, list) and pulls else None
         if pull is None:
-            result[stage] = {"state": "stopped", "text": "зупинено, без PR", "url": url}
+            cause = STEP_CAUSES.get(_failed_step(run, config, http)) if run.get("conclusion") == "failure" else None
+            state, text = cause or ("stopped", "зупинено, без PR")
+            result[stage] = {"state": state, "text": text, "url": url}
         elif pull.get("state") != "open":
             continue
         elif pull.get("draft"):
