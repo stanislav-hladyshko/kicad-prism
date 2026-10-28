@@ -3,15 +3,7 @@ import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 import { pipelineStages, stoppedStageNumber, type PipelineCell, type ProjectPipeline } from "./pipeline-api";
-
-const STATE_TEXT_CLASS: Record<PipelineCell["state"], string> = {
-    ok: "text-success",
-    warn: "text-warning",
-    bad: "text-destructive",
-    human: "text-primary",
-    none: "text-muted-foreground",
-    na: "text-muted-foreground",
-};
+import { STAGE_SEGMENT_CLASS } from "./pipeline-bar";
 
 interface CheckRowProps {
     id?: string;
@@ -32,7 +24,12 @@ function CheckRow({ id, label, cell, emphasised, focused }: CheckRowProps) {
             )}
         >
             <span className={cn(emphasised && "font-semibold")}>{label}</span>
-            <span className={cn("font-medium", STATE_TEXT_CLASS[cell.state])}>{cell.text}</span>
+            {/* The word stays in the foreground colour: the state tokens are too dark for text on the dark theme
+                (destructive measured 2:1). The colour rides on the same mark as in the header graph. */}
+            <span className="flex items-center gap-2 font-medium">
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-sm", STAGE_SEGMENT_CLASS[cell.state])} aria-hidden />
+                {cell.text}
+            </span>
             <span className="text-muted-foreground">{cell.why}</span>
         </li>
     );
