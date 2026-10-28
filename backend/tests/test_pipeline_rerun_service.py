@@ -75,20 +75,22 @@ class StageRuns(unittest.TestCase):
     def test_run_stopped_by_a_credential_check_names_what_to_fix(self):
         reruns._failed_steps.clear()
         github = FakeGitHub([run(31, "G4", 6, conclusion="failure"), run(32, "G4", 7, conclusion="failure"),
-                             run(33, "G4", 8, conclusion="failure"), run(34, "G4", 9, conclusion="cancelled")],
-                            failed_steps={31: "Claude sign-in", 32: "Stand access"})
+                             run(33, "G4", 8, conclusion="failure"), run(34, "G4", 9, conclusion="cancelled"),
+                             run(35, "G4", 10, conclusion="failure")],
+                            failed_steps={31: "Claude sign-in", 32: "Stand access", 35: "Subscription only"})
         stages = reruns.stage_runs("G4", CONFIG, github, now=NOW)
         self.assertEqual({n: s["text"] for n, s in stages.items()}, {
             6: "токен Claude не діє",
             7: "немає доступу до стенда",
             8: "зупинено, без PR",       # failed in the repair run itself
             9: "зупинено, без PR",       # cancelled: no step to blame
+            10: "оплата не з підписки",  # an API key would have outranked the subscription token
         })
         self.assertEqual(stages[6]["url"], "https://github.com/owner/boards/actions/runs/31")
         # a finished run's steps are read once, not on every poll
         reruns.stage_runs("G4", CONFIG, github, now=NOW)
         jobs_reads = [path for _, path, *_ in github.calls if path.endswith("/jobs")]
-        self.assertEqual(len(jobs_reads), 3)
+        self.assertEqual(len(jobs_reads), 4)
 
     def test_refused_token_says_which_permissions_it_needs(self):
         with self.assertRaises(reruns.RerunError) as refused:

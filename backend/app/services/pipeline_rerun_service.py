@@ -9,7 +9,7 @@ holds no agent credential.
 Contract with the workflow: inputs ``board`` and ``stage``; the run is named
 ``rerun <board> stage <n>``; its pull request comes from the branch
 ``repair/<board lowercase>-stage<n>-<run id>``. A run that fails on a credential check
-stops in a step named ``Claude sign-in`` or ``Stand access``; the row names that cause.
+stops in a step named ``Subscription only``, ``Claude sign-in`` or ``Stand access``; the row names that cause.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ RUNS_PAGE = 30
 REQUEST_TIMEOUT_S = 20
 # failed workflow step -> what the stage row says; any other failure stays "зупинено, без PR"
 STEP_CAUSES = {
+    "Subscription only": ("billing", "оплата не з підписки"),
     "Claude sign-in": ("token", "токен Claude не діє"),
     "Stand access": ("stand", "немає доступу до стенда"),
 }
