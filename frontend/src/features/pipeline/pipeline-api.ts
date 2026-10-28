@@ -83,3 +83,42 @@ export function useProjectPipelines() {
     }, [read.data]);
     return { byProject, loading: read.loading, error: read.error };
 }
+
+/** The latest run of a stage's redo workflow that still needs attention (backend pipeline_rerun_service). */
+export interface StageRun {
+    state: "queued" | "running" | "review" | "draft" | "stopped";
+    text: string;
+    url: string;
+}
+
+export interface StageReruns {
+    configured: boolean;
+    reason: string | null;
+    stages: Record<string, StageRun>;
+}
+
+/** Stages a repair run may redo; 1-5 change the circuit (docs/product/features/rerun-stage.md in the board repository). */
+export const RERUNNABLE_STAGES = new Set([6, 7, 8, 9, 10]);
+const RERUN_POLL_MS = 20_000;
+
+export function stageRerunsKey(projectId: string) {
+    return ["pipeline", "reruns", projectId] as const;
+}
+
+/** Runs of the board's stage workflow, re-read while the page is visible; `null` reads nothing. */
+export function useStageReruns(projectId: string | null) {
+    return useServerState(
+        projectId ? stageRerunsKey(projectId) : null,
+        (signal) => fetchJson<StageReruns>(`/api/projects/${encodeURIComponent(projectId ?? "")}/pipeline/reruns`, { signal },
+            "Could not load the stage runs"),
+        { pollMs: RERUN_POLL_MS, whileVisible: true },
+    );
+}
+
+export function startStageRerun(projectId: string, stage: number) {
+    return fetchJson<{ state: string }>(
+        `/api/projects/${encodeURIComponent(projectId)}/pipeline/stages/${stage}/rerun`,
+        { method: "POST" },
+        "Не вдалось запустити",
+    );
+}
