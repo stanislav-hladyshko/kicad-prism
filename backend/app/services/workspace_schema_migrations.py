@@ -50,6 +50,18 @@ from app.services.workspace_migrations import m123_drop_system_builder_v1
 from app.services.workspace_migrations import m124_drop_mesh_viewer_readiness
 from app.services.workspace_migrations import m129_drop_system_builder_v2
 from app.services.workspace_migrations import m130_sim_run_solved_commit
+from app.services.workspace_migrations import m131_idempotency_keys
+from app.services.workspace_migrations import m132_workspace_events
+from app.services.workspace_migrations import m133_personal_access_tokens
+from app.services.workspace_migrations import m134_mcp_grants
+from app.services.workspace_migrations import m135_mcp_governance
+from app.services.workspace_migrations import m136_mcp_audit
+from app.services.workspace_migrations import m137_webhooks
+from app.services.workspace_migrations import m138_token_audit
+from app.services.workspace_migrations import m139_ops_instrumentation
+from app.services.workspace_migrations import m140_ops_workers_settings
+from app.services.workspace_migrations import m141_pg_stat_statements
+from app.services.workspace_migrations import m142_ops_profiles
 
 
 Migration = Callable[[Any], None]
@@ -96,6 +108,18 @@ MIGRATIONS: tuple[tuple[int, str, Migration], ...] = (
     # 125-128 were System Builder v2; 129 drops what they made.
     (129, "drop_system_builder_v2", m129_drop_system_builder_v2.migrate),
     (130, "sim_run_solved_commit", m130_sim_run_solved_commit.migrate),
+    (131, "idempotency_keys", m131_idempotency_keys.migrate),
+    (132, "workspace_events", m132_workspace_events.migrate),
+    (133, "personal_access_tokens", m133_personal_access_tokens.migrate),
+    (134, "mcp_grants", m134_mcp_grants.migrate),
+    (135, "mcp_governance", m135_mcp_governance.migrate),
+    (136, "mcp_audit", m136_mcp_audit.migrate),
+    (137, "webhooks", m137_webhooks.migrate),
+    (138, "token_audit", m138_token_audit.migrate),
+    (139, "ops_instrumentation", m139_ops_instrumentation.migrate),
+    (140, "ops_workers_settings", m140_ops_workers_settings.migrate),
+    (141, "pg_stat_statements", m141_pg_stat_statements.migrate),
+    (142, "ops_profiles", m142_ops_profiles.migrate),
 )
 
 # Migrations that a long-lived branch database recorded under an earlier number.

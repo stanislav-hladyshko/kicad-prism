@@ -404,6 +404,7 @@ def validate_external_api_jwt(token: str) -> dict[str, Any] | None:
         "picture": "",
         "role": role,
         "client_id": client_id,
+        "token_id": str(payload.get("jti") or ""),
         "scopes": scopes,
         "auth_type": "external_service",
     }

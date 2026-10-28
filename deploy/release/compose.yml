@@ -7,6 +7,9 @@ services:
     container_name: kicad-prism-postgres
     restart: unless-stopped
     shm_size: 256mb
+    # Loaded so the ops get_slow_queries diagnostic can read query timings
+    # (ADR §11, D25). Removing it only makes that tool report available=false.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=top"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kicad_prism}
       POSTGRES_USER: ${POSTGRES_USER:-kicad_prism}

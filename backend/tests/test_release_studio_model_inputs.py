@@ -223,6 +223,181 @@ class ModelInputStoreTests(unittest.TestCase):
         )
         self.assertEqual(record["acknowledged_models"], [key])
 
+    def test_candidate_build_and_approval_rows_match_the_response_models(self) -> None:
+        """The typed routes serialize real rows exactly as the dicts did."""
+
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        candidate = self._candidate()
+        self.assertEqual(
+            models.CandidateRecord.model_validate(candidate).model_dump(mode="json"),
+            jsonable_encoder(candidate),
+        )
+        build_id = f"build-{uuid.uuid4().hex[:8]}"
+        self.conn.execute(
+            """
+            INSERT INTO ws_release_builds(id, candidate_id, status, dossier_digest)
+            VALUES (%s, %s, 'succeeded', %s)
+            """,
+            (build_id, candidate["id"], "e" * 64),
+        )
+        self.conn.commit()
+        builds = store.list_builds(candidate["id"])
+        self.assertEqual(
+            [models.ListedBuild.model_validate(row).model_dump(mode="json") for row in builds],
+            [jsonable_encoder(row) for row in builds],
+        )
+        listed = {
+            "candidates": [
+                {
+                    **candidate,
+                    "builds": builds,
+                    "latest_build": builds[0] if builds else None,
+                }
+            ]
+        }
+        self.assertEqual(
+            models.CandidateList.model_validate(listed).model_dump(mode="json"),
+            jsonable_encoder(listed),
+        )
+        build = store.get_build(build_id)
+        self.assertEqual(
+            models.BuildRecord.model_validate(build).model_dump(mode="json"),
+            jsonable_encoder(build),
+        )
+        state = store.build_approval_state(
+            build=build,
+            candidate=candidate,
+            evidence=[],
+            vendor_readiness=[],
+            designer_row=None,
+            qa_row=None,
+            publish_row=None,
+            actor_email="designer@example.com",
+            actor_role="designer",
+            unpinned_models=[],
+        )
+        self.assertEqual(
+            models.ApprovalState.model_validate(state).model_dump(mode="json"),
+            jsonable_encoder(state),
+        )
+
+        member_id = f"member-{uuid.uuid4().hex[:8]}"
+        self.conn.execute(
+            """
+            INSERT INTO ws_release_members(
+                id, build_id, path, member_kind, media_type, size_bytes,
+                released_digest, source_raw_digest
+            ) VALUES (%s, %s, 'board.kicad_pcb', 'board', 'application/octet-stream', 10, 'r', 's')
+            """,
+            (member_id, build_id),
+        )
+        self.conn.execute(
+            "INSERT INTO ws_release_member_domains(member_id, build_id, domain) VALUES (%s, %s, 'bare_board')",
+            (member_id, build_id),
+        )
+        self.conn.execute(
+            """
+            INSERT INTO ws_release_evidence(id, build_id, kind, report_digest, counts)
+            VALUES (%s, %s, 'drc', 'report', '{"errors": 0}'::jsonb)
+            """,
+            (f"evidence-{uuid.uuid4().hex[:8]}", build_id),
+        )
+        self.conn.execute(
+            """
+            INSERT INTO ws_release_scope_fingerprints(build_id, domain, fingerprint, inputs, fidelity)
+            VALUES (%s, 'bare_board', 'fingerprint', '{"inputs": 1}'::jsonb, 'artifact')
+            """,
+            (build_id,),
+        )
+        self.conn.commit()
+        members = store.build_members(build_id)
+        self.assertEqual(
+            [models.MemberRecord.model_validate(row).model_dump(mode="json") for row in members],
+            [jsonable_encoder(row) for row in members],
+        )
+        evidence = store.build_evidence(build_id)
+        self.assertEqual(
+            [models.EvidenceRecord.model_validate(row).model_dump(mode="json") for row in evidence],
+            [jsonable_encoder(row) for row in evidence],
+        )
+        fingerprints = store.build_fingerprints(build_id)
+        self.assertEqual(
+            {
+                domain: models.FingerprintRecord.model_validate(row).model_dump(mode="json")
+                for domain, row in fingerprints.items()
+            },
+            {domain: jsonable_encoder(row) for domain, row in fingerprints.items()},
+        )
+
+        store.record_review_decision(
+            project_id=self.project,
+            build_id=build_id,
+            slot="designer",
+            actor="designer@example.com",
+            actor_role="designer",
+            decision="approved",
+            dossier_digest="e" * 64,
+            author="designer@example.com",
+            published=False,
+            build_status="succeeded",
+            config_key="release",
+            acknowledged_models=[],
+        )
+        decision = store.latest_review_decision(build_id, "designer")
+        self.assertEqual(
+            models.ReviewDecision.model_validate(decision).model_dump(mode="json"),
+            jsonable_encoder(decision),
+        )
+        record = store.record_publish(
+            project_id=self.project,
+            build_id=build_id,
+            tag="v1.0.0",
+            commit_sha="a" * 40,
+            dossier_digest="e" * 64,
+            published_by="qa@example.com",
+            forge_url="https://example.invalid/release",
+            asset_names=["board.zip"],
+            config_key="release",
+            acknowledged_models=[],
+        )
+        self.assertEqual(
+            models.PublishRecord.model_validate(record).model_dump(mode="json"),
+            jsonable_encoder(record),
+        )
+
+        forge = {
+            "kind": "github",
+            "name": "GitHub",
+            "host": "github.com",
+            "owner_repo": "org/board",
+            "token_configured": True,
+            "token_hint": "",
+        }
+        detail = {
+            "build": build,
+            "candidate": candidate,
+            "configuration": {"revision": "v1.0.0"},
+            "members": members,
+            "evidence": evidence,
+            "fingerprints": fingerprints,
+            "vendor_readiness": [],
+            "forge": forge,
+            "approvals": state,
+            "forge_release": None,
+        }
+        self.assertEqual(
+            models.BuildDetail.model_validate(detail).model_dump(mode="json"),
+            jsonable_encoder(detail),
+        )
+        result = {"release": {"tag": "v1.0.0", "url": "https://example.invalid/release"}, "filename": "board.zip", "publish": record}
+        self.assertEqual(
+            models.PublishResult.model_validate(result).model_dump(mode="json"),
+            jsonable_encoder(result),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

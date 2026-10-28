@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import logging
 import re
 import shutil
@@ -273,9 +274,146 @@ def store_uploaded_thumbnail(
         encoded_path.unlink(missing_ok=True)
 
 
+# -- renders -----------------------------------------------------------------
+#
+# A render is a PNG an agent asked for, keyed by the hash of its normalised
+# request (``design_render``). It sits beside thumbnails but in its own tree:
+# a render is immutable once written, and there are up to ``RENDER_BUDGET`` of
+# them per project rather than one thumbnail. The record that describes it is
+# a JSON file next to the PNG, written atomically, so a reader never observes
+# half a render.
+
+RENDER_BUDGET = 100
+
+
+def render_dir(project_path: str | Path, anchor: Optional[str] = None) -> Path:
+    """The directory holding one project's renders."""
+
+    return derived_root() / "renders" / _project_key(project_path, anchor)
+
+
+def render_paths(
+    project_path: str | Path,
+    render_id: str,
+    anchor: Optional[str] = None,
+) -> tuple[Path, Path]:
+    """``(png, record)`` paths for one render id; nothing is created."""
+
+    directory = render_dir(project_path, anchor)
+    return directory / f"{render_id}.png", directory / f"{render_id}.json"
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    with open(temporary, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+    temporary.replace(path)
+
+
+def store_render(
+    project_path: str | Path,
+    render_id: str,
+    png: bytes,
+    record: dict,
+    *,
+    anchor: Optional[str] = None,
+) -> tuple[Path, int]:
+    """Store one finished render: its PNG and its JSON record."""
+
+    png_path, record_path = render_paths(project_path, render_id, anchor)
+    _write_atomic(png_path, png)
+    png_path.chmod(0o644)
+    payload = json.dumps(record, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    _write_atomic(record_path, payload)
+    return png_path, len(png)
+
+
+def write_render_record(
+    project_path: str | Path,
+    render_id: str,
+    record: dict,
+    *,
+    anchor: Optional[str] = None,
+) -> Path:
+    """Write a render's JSON record without touching its PNG."""
+
+    _, record_path = render_paths(project_path, render_id, anchor)
+    _write_atomic(
+        record_path,
+        json.dumps(record, separators=(",", ":"), ensure_ascii=False).encode("utf-8"),
+    )
+    return record_path
+
+
+def find_render(
+    project_path: str | Path,
+    render_id: str,
+    *,
+    anchor: Optional[str] = None,
+) -> Optional[dict]:
+    """A render's record, or ``None`` when it has none."""
+
+    _, record_path = render_paths(project_path, render_id, anchor)
+    try:
+        return json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def find_render_png(
+    project_path: str | Path,
+    render_id: str,
+    *,
+    anchor: Optional[str] = None,
+) -> Optional[Path]:
+    """The stored PNG of a render, or ``None``."""
+
+    png_path, _ = render_paths(project_path, render_id, anchor)
+    return png_path if png_path.is_file() else None
+
+
+def prune_renders(
+    project_path: str | Path,
+    *,
+    keep: int = RENDER_BUDGET,
+    anchor: Optional[str] = None,
+) -> int:
+    """Drop the oldest renders past ``keep``; returns how many were removed.
+
+    ``createdAt`` is the record's clock; a record without one falls back to the
+    file's mtime, so an interrupted write cannot pin an entry forever.
+    """
+
+    directory = render_dir(project_path, anchor)
+    if not directory.is_dir():
+        return 0
+    entries: list[tuple[float, Path]] = []
+    for record_path in directory.glob("*.json"):
+        try:
+            record = json.loads(record_path.read_text(encoding="utf-8"))
+            created = float(record.get("createdAt") or 0)
+        except (OSError, ValueError, TypeError):
+            created = 0
+        if created <= 0:
+            try:
+                created = record_path.stat().st_mtime
+            except OSError:
+                continue
+        entries.append((created, record_path))
+    removed = 0
+    for _, record_path in sorted(entries, key=lambda item: item[0])[: max(0, len(entries) - keep)]:
+        record_path.unlink(missing_ok=True)
+        record_path.with_suffix(".png").unlink(missing_ok=True)
+        removed += 1
+    return removed
+
+
 def discard(project_path: str | Path, anchor: Optional[str] = None) -> None:
     """Drop every derived asset for a project checkout."""
     shutil.rmtree(thumbnail_dir(project_path, anchor), ignore_errors=True)
+    shutil.rmtree(render_dir(project_path, anchor), ignore_errors=True)
 
 
 def purge_legacy_in_tree_thumbnails(project_path: str | Path, repo) -> list[str]:

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, ContextManager, Iterator, Mapping, Optional
 
 from app.core.config import Settings, settings as default_settings
+from app.services import comment_live_events
 from app.services.trackers.contracts import CommentRead, Destination, IssueRead
 from app.services.trackers.errors import ProviderError
 from app.services.trackers.github_updates import destination_for, list_destination_updates
@@ -244,8 +245,10 @@ class ConnectorRuntime:
 
     @contextmanager
     def connection(self) -> Iterator[Any]:
-        with self._connect() as conn:
-            yield conn
+        with comment_live_events.queued_events() as queued:
+            with self._connect() as conn:
+                yield conn
+        comment_live_events.record_queued_events(queued)
 
     def issue_adapter(self, connector: Mapping[str, Any]) -> Any:
         """The connector's issue adapter; ``auth_lost`` when it has no credentials."""

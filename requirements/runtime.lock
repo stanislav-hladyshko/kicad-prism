@@ -148,7 +148,9 @@ tzdata==2026.4 ; sys_platform == 'win32'
 uharfbuzz==0.56.1
     # via kicad-monkey
 urllib3==2.8.0
-    # via requests
+    # via
+    #   -r requirements/runtime.in
+    #   requests
 uvicorn==0.53.0
     # via -r requirements/runtime.in
 webencodings==0.6.1

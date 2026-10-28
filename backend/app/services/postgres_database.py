@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from app.core.config import settings
+from app.core import request_context
 
 
 def postgres_dsn() -> str:
@@ -111,7 +112,11 @@ class PostgresDatabase:
                 self._wait_count += 1
                 self._wait_total_seconds += waited
                 self._wait_max_seconds = max(self._wait_max_seconds, waited)
-            yield connection
+            try:
+                yield connection
+            finally:
+                # Waiting for and holding the connection, charged to the request (D24).
+                request_context.add_db_time(time.perf_counter() - started)
 
     def metrics_snapshot(self) -> dict[str, Any]:
         pool = self.pool()

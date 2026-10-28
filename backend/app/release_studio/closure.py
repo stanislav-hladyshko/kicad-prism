@@ -706,6 +706,12 @@ def _write_symlink(path: Path, content: bytes, relative_path: str) -> None:
         os.symlink(os.fsdecode(content), path)
     except FileExistsError as exc:
         raise ClosureError(f"duplicate materialized path: {relative_path}") from exc
+    except OSError as exc:
+        if os.name == "nt":
+            raise ClosureError(
+                f"{relative_path} is a symbolic link and Windows refused to create it: enable Developer Mode"
+            ) from exc
+        raise
 
 
 def _parse_lfs_pointer(content: bytes) -> _LfsPointer | None:

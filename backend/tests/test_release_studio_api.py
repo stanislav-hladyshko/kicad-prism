@@ -212,6 +212,14 @@ class ReleaseStudioDocumentSheetApiTests(unittest.TestCase):
         self.assertEqual(
             result["sheets"][0]["pdf"]["path"], "documentation/fabrication.pdf"
         )
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.DocumentSheetList.model_validate(result).model_dump(mode="json"),
+            jsonable_encoder(result),
+        )
 
     def test_sheet_preview_is_digest_checked_and_immutable(self) -> None:
         response = _run(
@@ -243,6 +251,42 @@ class ReleaseStudioDocumentSheetApiTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.status_code, 500)
         self.assertEqual(caught.exception.detail, "The stored dossier could not be read.")
+
+
+class ReleaseStudioBuildLogsApiTests(unittest.TestCase):
+    """Build logs are shaped from the evidence index and stay typed."""
+
+    def test_build_logs_match_the_response_model(self) -> None:
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio as api
+        from app.api import release_studio_models as models
+
+        user = _User("viewer", role="viewer")
+        index = {
+            "timings": [{"step": "build", "elapsed_ms": 3}],
+            "steps": {
+                "build": {
+                    "step_type": "build",
+                    "returncode": 0,
+                    "elapsed_ms": 3,
+                    "normalized_argv": ["prism-kicad", "bundle", "build"],
+                    "status": "succeeded",
+                },
+                "skipped": {"step_type": "documents", "elapsed_ms": 0, "status": "skipped"},
+            },
+        }
+        with (
+            patch.object(api, "get_project_for_role_or_404"),
+            patch.object(api.ARCHIVES, "build", return_value={"id": "build-1", "timings": []}),
+            patch.object(api.ARCHIVES, "evidence_index", return_value=index),
+        ):
+            payload = _run(api.list_build_logs("proj", "build-1", user=user))
+        self.assertEqual([step["step_id"] for step in payload["steps"]], ["build", "skipped"])
+        self.assertEqual(
+            models.BuildLogs.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
 
 
 class ReleaseStudioVendorApiTests(unittest.TestCase):
@@ -306,6 +350,14 @@ class ReleaseStudioVendorApiTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in payload["profiles"]], ["jlcpcb"])
         self.assertTrue(all("pack_filename" in item for item in payload["profiles"]))
         self.assertTrue(all("title" in item for item in payload["profiles"]))
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.VendorProfileList.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
 
     def test_unknown_vendor_pack_is_not_jlc_shaped(self) -> None:
         with self.assertRaises(DomainError) as caught:

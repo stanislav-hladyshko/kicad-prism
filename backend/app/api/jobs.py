@@ -3,22 +3,156 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Optional
 
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 
 from app.api._helpers import authorize_job_read
 from app.core import policy
 from app.core.security import AuthenticatedUser, require_admin, require_viewer
 from app.services.job_artifact_service import job_artifacts
-from app.services.job_runtime import job_state_root
+from app.services.job_runtime import JobLogNotFound, tail_job_log
 from app.services.job_service import jobs
 from app.services.postgres_database import database
 from app.services.comment_live_broker import broker as comment_live_broker
 
 
 router = APIRouter(dependencies=[Depends(require_viewer)])
+
+
+class ClaimLatency(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    p50: float
+    p95: float
+    max: float
+
+
+class JobUpdateRate(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    p95: float
+    max: float
+
+
+class KindStatusCount(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    kind: str
+    status: str
+    count: int
+
+
+class DatabasePoolMetrics(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    connectionWaitCount: int
+    connectionWaitMeanMs: float
+    connectionWaitMaxMs: float
+    pool: dict[str, Any]
+
+
+class CommentLiveMetrics(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    connections: int
+    listenerConnected: bool
+    listenerReconnects: int
+    replayFailures: int
+    deliveredEvents: int
+    eventLagMeanMs: float
+    eventLagMaxMs: float
+
+
+class ThreadPoolMetrics(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    borrowedTokens: int
+    totalTokens: int
+    queueDepth: int
+
+
+class BenchmarkMetrics(BaseModel):
+    """Queue latency, job write rate and the API's pool counters."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    since: str
+    jobCount: int
+    activeJobs: int
+    claimLatencyMs: ClaimLatency
+    jobUpdateRatePerSecond: JobUpdateRate
+    byKindStatus: list[KindStatusCount]
+    apiDatabasePool: DatabasePoolMetrics
+    apiCommentLive: CommentLiveMetrics
+    apiThreadPool: ThreadPoolMetrics
+
+
+class JobStatus(BaseModel):
+    """The slim job row the status route returns."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    job_id: str
+    kind: Optional[str]
+    status: Optional[str]
+    stage: Optional[str]
+    message: Optional[str]
+    percent: Optional[float]
+    attempt: Optional[int]
+    max_attempts: Optional[int]
+    project_id: Optional[str]
+    repository_id: Optional[str]
+    created_at: Optional[str]
+    updated_at: Optional[str]
+    available_at: Optional[str]
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    cancel_requested_at: Optional[str]
+    result_digest: Optional[str]
+    result_metadata: Optional[dict[str, Any]]
+    error_code: Optional[str]
+    error_message: Optional[str]
+    result_url: Optional[str]
+    # Only present when the job's payload or result names a pipeline.
+    pipeline: Optional[Any] = None
+
+
+class JobEvent(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    id: int
+    event_type: str
+    stage: Optional[str]
+    percent: Optional[float]
+    details: dict[str, Any]
+    created_at: str
+
+
+class JobEvents(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    job_id: str
+    events: list[JobEvent]
+
+
+class JobLogs(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    job_id: str
+    lines: list[str]
+
+
+class JobCancelRequested(BaseModel):
+    """A cancel request: the status the service reports may be a terminal one."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    job_id: str
+    status: Optional[str]
 
 
 def _authorize_cancel(job: dict, user: AuthenticatedUser) -> None:
@@ -75,7 +209,7 @@ def _get_authorized_job(job_id: str, user: AuthenticatedUser) -> dict:
     return job
 
 
-@router.get("/benchmark-metrics")
+@router.get("/benchmark-metrics", response_model=BenchmarkMetrics, summary="Queue latency and job write-rate metrics")
 async def benchmark_metrics(
     since: str = Query(default=""),
     user: AuthenticatedUser = Depends(require_admin),
@@ -103,7 +237,7 @@ async def benchmark_metrics(
     return snapshot
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=JobStatus, response_model_exclude_unset=True, summary="One job's status")
 async def get_job(
     job_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -115,7 +249,12 @@ async def get_job(
     return _slim_status(job)
 
 
-@router.post("/{job_id}/cancel", status_code=202)
+@router.post(
+    "/{job_id}/cancel",
+    status_code=202,
+    response_model=JobCancelRequested,
+    summary="Ask a job to cancel",
+)
 async def cancel_job(
     job_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -132,7 +271,7 @@ async def cancel_job(
     return {"job_id": job_id, "status": status}
 
 
-@router.get("/{job_id}/events")
+@router.get("/{job_id}/events", response_model=JobEvents, summary="A job's progress events after a given id")
 async def get_job_events(
     job_id: str,
     after: int = Query(0, ge=0),
@@ -147,7 +286,11 @@ async def get_job_events(
     return {"job_id": job_id, "events": events}
 
 
-@router.get("/{job_id}/artifact")
+@router.get(
+    "/{job_id}/artifact",
+    responses={200: {"description": "The job's artifact file.", "content": {"*/*": {}}}},
+    summary="Download a completed job's artifact",
+)
 async def get_job_artifact(
     job_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -181,22 +324,13 @@ async def get_job_artifact(
 
 
 def _tail_log(path: Path, line_count: int) -> list[str]:
-    root = (job_state_root() / "jobs").resolve()
-    resolved = path.resolve()
     try:
-        resolved.relative_to(root)
-    except ValueError as error:
+        return tail_job_log(path, line_count)
+    except JobLogNotFound as error:
         raise HTTPException(status_code=404, detail="Job log not found") from error
-    if not resolved.is_file():
-        raise HTTPException(status_code=404, detail="Job log not found")
-    with resolved.open("rb") as handle:
-        size = handle.seek(0, 2)
-        handle.seek(max(0, size - 256 * 1024))
-        text = handle.read(256 * 1024).decode("utf-8", errors="replace")
-    return text.splitlines()[-line_count:]
 
 
-@router.get("/{job_id}/logs")
+@router.get("/{job_id}/logs", response_model=JobLogs, summary="The tail of a job's log")
 async def get_job_logs(
     job_id: str,
     tail: int = Query(200, ge=1, le=1000),

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.api._blocking import run_bounded_io
 from app.api._helpers import get_project_for_role_or_404
 from app.api.projects import _load_project_readme_content
+from app.api.projects_models import ProjectOverview
 from app.core.security import AuthenticatedUser, require_viewer
 from app.services import project_import_service, project_metadata_service, project_outputs, project_service
 
@@ -166,7 +167,7 @@ def _build_project_properties(
     return payload, headers
 
 
-@router.get("/{project_id}/overview")
+@router.get("/{project_id}/overview", response_model=ProjectOverview, summary="Project details and README in one payload")
 async def get_project_overview(
     project_id: str,
     commit: str = None,

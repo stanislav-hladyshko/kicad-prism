@@ -16,6 +16,16 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 
 from app.api._helpers import get_project_for_role_or_404
+from app.api.comments_models import (
+    CommentAttachmentUploadView,
+    CommentHistoryEntry,
+    CommentThreadView,
+    CommentView,
+    CommentsListing,
+    DeletedCommentView,
+    PushCommentsView,
+    ReplyCreatedView,
+)
 from app.core import preconditions
 from app.core.security import AuthenticatedUser, require_comment_writer, require_designer, require_viewer
 from app.services import access_service, comment_attachments, comment_permissions, comment_social
@@ -326,7 +336,12 @@ async def list_mention_candidates(
     return await asyncio.to_thread(read)
 
 
-@router.get("/{project_id}/comments")
+@router.get(
+    "/{project_id}/comments",
+    response_model=CommentsListing,
+    response_model_exclude_unset=True,
+    summary="List a project's comment threads",
+)
 async def get_comments(
     project_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -359,7 +374,12 @@ async def get_comments(
         raise HTTPException(status_code=422, detail=exc.detail) from exc
 
 
-@router.get("/{project_id}/comments/{comment_id}/thread")
+@router.get(
+    "/{project_id}/comments/{comment_id}/thread",
+    response_model=CommentThreadView,
+    response_model_exclude_unset=True,
+    summary="Get one comment thread for a live refresh",
+)
 async def get_comment_thread(
     project_id: str,
     comment_id: str,
@@ -392,7 +412,12 @@ async def get_comment_thread(
         raise HTTPException(status_code=422, detail=exc.detail) from exc
 
 
-@router.get("/{project_id}/comparison-comments")
+@router.get(
+    "/{project_id}/comparison-comments",
+    response_model=CommentsListing,
+    response_model_exclude_unset=True,
+    summary="List a comparison's discussion threads",
+)
 async def get_comparison_comments(
     project_id: str,
     base: str,
@@ -423,7 +448,17 @@ async def get_comparison_comments(
     return await asyncio.to_thread(read)
 
 
-@router.get("/{project_id}/comparison-comments/report")
+@router.get(
+    "/{project_id}/comparison-comments/report",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/zip": {}},
+            "description": "The discussion as Markdown plus its attachments, zipped",
+        }
+    },
+    summary="Download a comparison's discussion report",
+)
 async def get_comparison_discussion_report(
     project_id: str,
     base: str,
@@ -458,6 +493,9 @@ async def get_comparison_discussion_report(
 @router.post(
     "/{project_id}/comparison-comments",
     dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Create a comparison, file, group or item discussion",
 )
 async def create_comparison_comment(
     project_id: str,
@@ -516,7 +554,13 @@ async def create_comparison_comment(
     return await _run_mutation(write)
 
 
-@router.post("/{project_id}/comments", dependencies=[Depends(require_comment_writer)])
+@router.post(
+    "/{project_id}/comments",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Create a comment on the design",
+)
 async def create_comment(
     project_id: str,
     request: CreateCommentRequest,
@@ -584,7 +628,13 @@ def _expected_revision(http: Request, kind: str, target_id: str, *, required: bo
     return preconditions.int_version(preconditions.if_match(http, kind, target_id, required=required))
 
 
-@router.patch("/{project_id}/comments/{comment_id}", dependencies=[Depends(require_comment_writer)])
+@router.patch(
+    "/{project_id}/comments/{comment_id}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Edit a comment's content or status",
+)
 async def update_comment(
     project_id: str,
     comment_id: str,
@@ -625,7 +675,13 @@ async def update_comment(
     return updated_comment
 
 
-@router.post("/{project_id}/comments/{comment_id}/pin", dependencies=[Depends(require_comment_writer)])
+@router.post(
+    "/{project_id}/comments/{comment_id}/pin",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Pin an unpinned comment to an exact commit",
+)
 async def pin_comment(
     project_id: str,
     comment_id: str,
@@ -650,7 +706,13 @@ async def pin_comment(
     return result
 
 
-@router.post("/{project_id}/comments/{comment_id}/reattach", dependencies=[Depends(require_comment_writer)])
+@router.post(
+    "/{project_id}/comments/{comment_id}/reattach",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Reattach a comment for a commit's descendants",
+)
 async def reattach_comment(
     project_id: str,
     comment_id: str,
@@ -690,7 +752,13 @@ async def reattach_comment(
     return result
 
 
-@router.post("/{project_id}/comments/{comment_id}/replies", dependencies=[Depends(require_comment_writer)])
+@router.post(
+    "/{project_id}/comments/{comment_id}/replies",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=ReplyCreatedView,
+    response_model_exclude_unset=True,
+    summary="Reply to an existing comment",
+)
 async def add_reply(
     project_id: str,
     comment_id: str,
@@ -725,7 +793,13 @@ async def add_reply(
     return result
 
 
-@router.patch("/{project_id}/comments/{comment_id}/replies/{reply_id}", dependencies=[Depends(require_comment_writer)])
+@router.patch(
+    "/{project_id}/comments/{comment_id}/replies/{reply_id}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Edit a reply",
+)
 async def update_reply(
     project_id: str,
     comment_id: str,
@@ -751,7 +825,13 @@ async def update_reply(
     return result
 
 
-@router.delete("/{project_id}/comments/{comment_id}/replies/{reply_id}", dependencies=[Depends(require_comment_writer)])
+@router.delete(
+    "/{project_id}/comments/{comment_id}/replies/{reply_id}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Delete a reply",
+)
 async def delete_reply(
     project_id: str,
     comment_id: str,
@@ -794,7 +874,13 @@ async def _set_reaction(
     return result
 
 
-@router.put("/{project_id}/comments/{comment_id}/reactions/{reaction}", dependencies=[Depends(require_comment_writer)])
+@router.put(
+    "/{project_id}/comments/{comment_id}/reactions/{reaction}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Add a reaction to a comment or reply",
+)
 async def add_comment_reaction(
     project_id: str, comment_id: str, reaction: str, replyId: Optional[str] = None,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -803,7 +889,13 @@ async def add_comment_reaction(
     return await _set_reaction(project_id, comment_id, replyId, reaction, user, present=True)
 
 
-@router.delete("/{project_id}/comments/{comment_id}/reactions/{reaction}", dependencies=[Depends(require_comment_writer)])
+@router.delete(
+    "/{project_id}/comments/{comment_id}/reactions/{reaction}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentView,
+    response_model_exclude_unset=True,
+    summary="Remove a reaction from a comment or reply",
+)
 async def remove_comment_reaction(
     project_id: str, comment_id: str, reaction: str, replyId: Optional[str] = None,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -811,7 +903,13 @@ async def remove_comment_reaction(
     return await _set_reaction(project_id, comment_id, replyId, reaction, user, present=False)
 
 
-@router.delete("/{project_id}/comments/{comment_id}", dependencies=[Depends(require_comment_writer)])
+@router.delete(
+    "/{project_id}/comments/{comment_id}",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=DeletedCommentView,
+    response_model_exclude_unset=True,
+    summary="Delete a comment",
+)
 async def delete_comment(
     project_id: str,
     comment_id: str,
@@ -841,7 +939,12 @@ async def delete_comment(
     return {"deleted": comment_id}
 
 
-@router.get("/{project_id}/comments/{comment_id}/history")
+@router.get(
+    "/{project_id}/comments/{comment_id}/history",
+    response_model=list[CommentHistoryEntry],
+    response_model_exclude_unset=True,
+    summary="List a comment's revisions",
+)
 async def get_comment_history(
     project_id: str,
     comment_id: str,
@@ -854,7 +957,12 @@ async def get_comment_history(
     return await asyncio.to_thread(read)
 
 
-@router.get("/{project_id}/comments/{comment_id}/replies/{reply_id}/history")
+@router.get(
+    "/{project_id}/comments/{comment_id}/replies/{reply_id}/history",
+    response_model=list[CommentHistoryEntry],
+    response_model_exclude_unset=True,
+    summary="List a reply's revisions",
+)
 async def get_reply_history(
     project_id: str,
     comment_id: str,
@@ -872,7 +980,13 @@ async def get_reply_history(
 # EXPORT ENDPOINT
 # ============================================================
 
-@router.post("/{project_id}/comments/push", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/comments/push",
+    dependencies=[Depends(require_designer)],
+    response_model=PushCommentsView,
+    response_model_exclude_unset=True,
+    summary="Export the comment snapshot to the project's comments.json",
+)
 async def push_comments(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Export DB snapshot to comments.json artifact only.
@@ -901,7 +1015,13 @@ async def push_comments(project_id: str, user: AuthenticatedUser = Depends(requi
 # ATTACHMENTS
 # ============================================================
 
-@router.post("/{project_id}/comment-attachments", dependencies=[Depends(require_comment_writer)])
+@router.post(
+    "/{project_id}/comment-attachments",
+    dependencies=[Depends(require_comment_writer)],
+    response_model=CommentAttachmentUploadView,
+    response_model_exclude_unset=True,
+    summary="Upload a file for a comment that will reference it",
+)
 async def upload_comment_attachment(
     project_id: str,
     file: UploadFile = File(...),
@@ -934,7 +1054,26 @@ async def upload_comment_attachment(
     return created
 
 
-@router.get("/{project_id}/comment-attachments/{attachment_id}")
+@router.get(
+    "/{project_id}/comment-attachments/{attachment_id}",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "content": {
+                "image/png": {},
+                "image/jpeg": {},
+                "image/webp": {},
+                "application/pdf": {},
+                "application/zip": {},
+                "text/plain": {},
+                "text/csv": {},
+                "text/markdown": {},
+            },
+            "description": "The stored attachment, inline for images and a download otherwise",
+        }
+    },
+    summary="Download a comment attachment",
+)
 async def get_comment_attachment(
     project_id: str,
     attachment_id: str,

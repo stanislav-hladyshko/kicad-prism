@@ -49,6 +49,32 @@ def test_a_parse_error_is_an_unreadable_source_with_kicads_reason(monkeypatch: p
     assert "line 1453222" in message
 
 
+def test_a_nightly_placement_board_says_how_to_fix_it(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    board = tmp_path / "board.kicad_pcb"
+    board.write_text(
+        "(kicad_pcb (version 20240108)\n"
+        "  (zone (placement\n      (expr \"A.memberOfSheet('/io/bank0/')\")))\n"
+        "  (zone (placement (expr \"A.memberofsheet('/io/bank1/')\"))))\n"
+    )
+    _python_answers(monkeypatch, kicad_tools.ToolResult(returncode=-6, stderr=PARSE_ABORT))
+    with pytest.raises(kicad_steps.KicadSourceUnreadable) as caught:
+        kicad_steps._run_python(kicad_steps.REFILL_SCRIPT, board, timeout=10, cancel=None)
+    message = str(caught.value)
+    assert "line 1453222" in message
+    assert "offset 5. The board has 2 rule-area placement(s)" in message
+    assert "no released KiCad reads" in message
+    assert '(placement (enabled yes) (sheetname "<sheet path>"))' in message
+
+
+def test_an_unrelated_parse_error_gets_no_hint(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    board = tmp_path / "board.kicad_pcb"
+    board.write_text("(kicad_pcb (version 20240108))\n")
+    _python_answers(monkeypatch, kicad_tools.ToolResult(returncode=-6, stderr=PARSE_ABORT))
+    with pytest.raises(kicad_steps.KicadSourceUnreadable) as caught:
+        kicad_steps._run_python(kicad_steps.REFILL_SCRIPT, board, timeout=10, cancel=None)
+    assert "rule-area" not in str(caught.value)
+
+
 def test_a_silent_crash_names_its_signal_and_stays_retryable(monkeypatch: pytest.MonkeyPatch) -> None:
     _python_answers(monkeypatch, kicad_tools.ToolResult(returncode=-11))
     with pytest.raises(kicad_steps.KicadStepFailed) as caught:

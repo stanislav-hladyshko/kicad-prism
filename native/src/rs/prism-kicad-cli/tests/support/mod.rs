@@ -102,7 +102,7 @@ pub fn fixtures(scratch: &Path) -> Vec<Fixture> {
                 .strip_prefix(&repo)
                 .unwrap()
                 .to_string_lossy()
-                .into_owned();
+                .replace('\\', "/");
             let stem = project.file_stem().unwrap().to_string_lossy().into_owned();
             Fixture {
                 refilled: recording(&dir, &format!("{stem}.kicad_pcb"), scratch),

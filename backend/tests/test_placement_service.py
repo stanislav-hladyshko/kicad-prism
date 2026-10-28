@@ -253,5 +253,24 @@ class DocumentPipelinePlacementsTests(unittest.TestCase):
         self.assertEqual(self._placements("a,b\n1,2\n"), [])
 
 
+class PlacementResponseModelTests(unittest.TestCase):
+    """The typed route answers exactly the dict ``view_of`` already built."""
+
+    def test_the_model_serializes_the_view_unchanged(self) -> None:
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import fabrication_view_models as models
+
+        for view in (
+            build_view(KICAD_POS, KICAD_BOM, positions_name="pos.csv", bom_name="bom.csv"),
+            build_view(KICAD_POS),
+        ):
+            with self.subTest(has_bom=view["hasBom"]):
+                typed = models.PlacementView.model_validate(view).model_dump(
+                    mode="json", by_alias=True, exclude_unset=True
+                )
+                self.assertEqual(typed, jsonable_encoder(view))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from app.core import errors
+from app.services import event_log
 from app.services import forge_publish_service as forge_publish
 from app.services import release_studio_model_inputs as model_inputs
 from app.services import release_studio_service as store
@@ -428,6 +429,15 @@ class ReleasePublisher:
             config_key=str(candidate.get("config_key") or ""),
             acknowledged_models=acknowledged,
         )
+        if decision == "approved":
+            event_log.record_quietly(
+                "release.approved",
+                project_id=project_id,
+                payload={
+                    "buildId": build_id,
+                    "commit": str(candidate.get("commit_sha") or ""),
+                },
+            )
         return {"approvals": self._approvals(build, candidate, readiness, actor)}
 
     # -- publish --------------------------------------------------------

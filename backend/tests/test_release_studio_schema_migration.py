@@ -1749,6 +1749,18 @@ class ReleaseStudioPostgresSchemaTests(unittest.TestCase):
                 (124, "drop_mesh_viewer_readiness"),
                 (129, "drop_system_builder_v2"),
                 (130, "sim_run_solved_commit"),
+                (131, "idempotency_keys"),
+                (132, "workspace_events"),
+                (133, "personal_access_tokens"),
+                (134, "mcp_grants"),
+                (135, "mcp_governance"),
+                (136, "mcp_audit"),
+                (137, "webhooks"),
+                (138, "token_audit"),
+                (139, "ops_instrumentation"),
+                (140, "ops_workers_settings"),
+                (141, "pg_stat_statements"),
+                (142, "ops_profiles"),
             ],
         )
 

@@ -25,6 +25,7 @@ from app.core.config import settings  # noqa: E402
 from app.services import (  # noqa: E402
     agent_auth_service,
     auth_service,
+    mcp_auth_service,
     provider_auth_service,
     service_client_service,
 )
@@ -154,8 +155,8 @@ class ProviderTokenTests(unittest.TestCase):
         scope = provider_auth_service.normalize_provider_scope("")
         payload = {"email": "d@example.com", "name": "D", "role": "admin", "scope": scope}
         with patch.object(agent_auth_service, "validate_agent_token", side_effect=_reject), patch.object(
-            provider_auth_service, "validate_access_token", return_value=payload
-        ):
+            mcp_auth_service, "validate_access_token", side_effect=_reject
+        ), patch.object(provider_auth_service, "validate_access_token", return_value=payload):
             caller = security._resolve_bearer_user("v1.provider.token")
         self.assertEqual(caller.auth_type, "kicad_provider")
         self.assertFalse(policy.allows(caller, "read"))

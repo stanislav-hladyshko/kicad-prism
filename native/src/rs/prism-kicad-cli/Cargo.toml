@@ -26,8 +26,21 @@ too_many_lines = "deny"
 name = "prism-kicad"
 path = "src/main.rs"
 
-[dependencies]
+[target.'cfg(unix)'.dependencies]
 libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+] }
+
+[dependencies]
 prism-artwork = { path = "../prism-artwork" }
 prism-bundle = { path = "../prism-bundle" }
 prism-kicad-contracts = { path = "../prism-kicad-contracts" }

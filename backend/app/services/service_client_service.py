@@ -295,6 +295,7 @@ def validate_service_access_token(token: str) -> dict[str, Any]:
         "picture": "",
         "role": role,
         "client_id": client_id,
+        "token_id": str(payload.get("jti") or ""),
         "scopes": scopes,
         "auth_type": "service_client",
     }

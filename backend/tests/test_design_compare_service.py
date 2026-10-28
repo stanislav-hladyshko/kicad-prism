@@ -8,7 +8,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from app.services import design_compare_service
+from app.services import design_compare_service, event_log
+from app.services.workspace_schema_migrations import WORKSPACE_LEDGER
+from support.postgres import requires_scratch_postgres, scratch_schema
 
 
 class RevisionCacheTests(unittest.TestCase):
@@ -90,6 +92,49 @@ class ResolveRevisionTests(unittest.TestCase):
             init_repo(tmp, {"a.txt": "a\n"})
             with self.assertRaises(ValueError):
                 design_compare_service._resolve_revision(Path(tmp), "nope")
+
+
+@requires_scratch_postgres("the comparison.done producer")
+class ComparisonDoneEventTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.events = scratch_schema(self, "compare_events", ledgers=(WORKSPACE_LEDGER,))
+        self.enterContext(mock.patch.object(event_log, "connect", self.events.connection))
+
+    def _events(self):
+        with self.events.connect() as conn:
+            return conn.execute("SELECT kind, project_id, topic, payload FROM ws_events").fetchall()
+
+    def test_a_completed_comparison_appends_comparison_done(self) -> None:
+        job = {
+            "job_id": "job-1",
+            "status": "completed",
+            "project_id": "p1",
+            "payload": {"base": "a" * 40, "head": "b" * 40},
+            "result_metadata": {"result_version": 2, "base": "a" * 40, "head": "b" * 40},
+        }
+
+        self.assertFalse(design_compare_service.settle_comparison_end(job))
+
+        events = self._events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["kind"], "comparison.done")
+        self.assertEqual(events[0]["project_id"], "p1")
+        self.assertEqual(events[0]["topic"], "job:job-1")
+        self.assertEqual(
+            events[0]["payload"],
+            {"jobId": "job-1", "base": "a" * 40, "compare": "b" * 40},
+        )
+
+    def test_an_ended_comparison_that_did_not_complete_appends_nothing(self) -> None:
+        job = {
+            "job_id": "job-1",
+            "status": "failed",
+            "project_id": "p1",
+            "payload": {"base": "a" * 40, "head": "b" * 40},
+            "result_metadata": {"result_version": 1},
+        }
+        self.assertFalse(design_compare_service.settle_comparison_end(job))
+        self.assertEqual(self._events(), [])
 
 
 if __name__ == "__main__":

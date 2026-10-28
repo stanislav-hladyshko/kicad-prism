@@ -1,0 +1,841 @@
+{
+  "sch": [
+    {
+      "id": "schematic:rules:erc-exclusions",
+      "kind": "added",
+      "title": "ERC exclusions",
+      "summary": "2 added",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "sch-erc-exclusion-1",
+        "sch-erc-exclusion-2"
+      ]
+    },
+    {
+      "id": "schematic:rules:erc-pin-compatibility",
+      "kind": "added",
+      "title": "ERC pin compatibility",
+      "summary": "",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "sch-erc-pin-rule"
+      ]
+    },
+    {
+      "id": "schematic:rules:net-class-assignments",
+      "kind": "added",
+      "title": "Net class assignments",
+      "summary": "",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "sch-net-class-assignment"
+      ]
+    },
+    {
+      "id": "schematic:components:part>0R~>10R~",
+      "kind": "changed",
+      "title": "0R → 10R",
+      "summary": "Value: 0R → 10R",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-r15-value",
+        "sch-r16-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>100nF~CAP-100N>220nF~CAP-220N",
+      "kind": "changed",
+      "title": "100nF → 220nF",
+      "summary": "Value: 100nF → 220nF",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-c6-value",
+        "sch-c7-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>100nF~CAP-100N>470nF~CAP-470N",
+      "kind": "changed",
+      "title": "100nF → 470nF (CAP-470N)",
+      "summary": "Value: 100nF → 470nF",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-c1-value",
+        "sch-c2-value",
+        "sch-c3-value",
+        "sch-c4-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>100nF~CAP-100N>470nF~OTHER-470N",
+      "kind": "changed",
+      "title": "100nF → 470nF (OTHER-470N)",
+      "summary": "Value: 100nF → 470nF",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-c8-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>10k~>4.7k~",
+      "kind": "changed",
+      "title": "10k → 4.7k",
+      "summary": "Value: 10k → 4.7k",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-r11-value",
+        "sch-r12-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>10uF~CAP-10U>~",
+      "kind": "removed",
+      "title": "10uF",
+      "summary": "",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-c5-removed"
+      ]
+    },
+    {
+      "id": "schematic:components:part>1k~>2k~",
+      "kind": "changed",
+      "title": "1k → 2k",
+      "summary": "Value: 1k → 2k",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-u11-moved-value"
+      ]
+    },
+    {
+      "id": "schematic:components:part>1N4148~DIODE-1N4148>~",
+      "kind": "removed",
+      "title": "1N4148",
+      "summary": "",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-d4-removed"
+      ]
+    },
+    {
+      "id": "schematic:components:part>1uF~>2.2uF~",
+      "kind": "changed",
+      "title": "1uF → 2.2uF",
+      "summary": "Value: 1uF → 2.2uF",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-c10-value-fallback"
+      ]
+    },
+    {
+      "id": "schematic:components:part>~>470nF~",
+      "kind": "added",
+      "title": "470nF",
+      "summary": "Value: — → 470nF",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-c9-added"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:fl3",
+      "kind": "changed",
+      "title": "FL3",
+      "summary": "Moved: usb_phy.kicad_sch → control_port.kicad_sch",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-fl3-added",
+        "sch-fl3-removed"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:l1",
+      "kind": "changed",
+      "title": "L1",
+      "summary": "Library item changed",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-l1-unnameable"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:q2",
+      "kind": "changed",
+      "title": "Q2",
+      "summary": "Footprint: SOT-23 → SOT-223",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-q2-footprint-swap"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r118",
+      "kind": "changed",
+      "title": "R118",
+      "summary": "Reference: R57 → R118",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-r57-renamed"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r13",
+      "kind": "changed",
+      "title": "R13",
+      "summary": "Footprint: 0402 → 0603",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-r13-footprint"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r30",
+      "kind": "changed",
+      "title": "R30",
+      "summary": "Renamed",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-r30-renamed"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r7",
+      "kind": "added",
+      "title": "R7",
+      "summary": "",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-r7-added"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r8",
+      "kind": "changed",
+      "title": "R8",
+      "summary": "DNP: No → Yes",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-r8-dnp"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:r9",
+      "kind": "changed",
+      "title": "R9",
+      "summary": "In BOM: Yes → No",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-r9-in-bom"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:u10",
+      "kind": "changed",
+      "title": "U10",
+      "summary": "Description: MCU → MCU v2",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-u10-description"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:u13",
+      "kind": "changed",
+      "title": "U13",
+      "summary": "Manufacturer: TI → NXP",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "sch-u13-manufacturer"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:u14",
+      "kind": "changed",
+      "title": "U14",
+      "summary": "Vendor: Mouser → DigiKey",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-u14-vendor"
+      ]
+    },
+    {
+      "id": "schematic:components:pin:u2-2",
+      "kind": "changed",
+      "title": "U2",
+      "summary": "Name: IN → ENABLE",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-u2-pin-rename"
+      ]
+    },
+    {
+      "id": "schematic:components:cmp:u4",
+      "kind": "changed",
+      "title": "U4",
+      "summary": "Library item changed",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-u4-lib-changed"
+      ]
+    },
+    {
+      "id": "schematic:nets:net:/Expansion/PMOD_A7",
+      "kind": "changed",
+      "title": "/Expansion/PMOD_A7",
+      "summary": "name: /Expansion/PMOD_A4 → /Expansion/PMOD_A7",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-net-rename-pmod"
+      ]
+    },
+    {
+      "id": "schematic:nets:net:/Power/3V3_MAIN",
+      "kind": "changed",
+      "title": "/Power/3V3_MAIN",
+      "summary": "name: /Power/3V3 → /Power/3V3_MAIN",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-net-rename"
+      ]
+    },
+    {
+      "id": "schematic:nets:cmp:pwr01",
+      "kind": "changed",
+      "title": "#PWR01",
+      "summary": "Value: GND → VCC",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-power-symbol"
+      ]
+    },
+    {
+      "id": "schematic:nets:bus:interface",
+      "kind": "changed",
+      "title": "bus:2",
+      "summary": "name: D[0..7] → D[0..15]",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-bus-interface"
+      ]
+    },
+    {
+      "id": "schematic:nets:no-connect:adc.kicad_sch",
+      "kind": "changed",
+      "title": "No-connect markers",
+      "summary": "1 added · 1 removed",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-no-connect-add",
+        "sch-no-connect-remove"
+      ]
+    },
+    {
+      "id": "schematic:nets:net:PMOD_B0",
+      "kind": "changed",
+      "title": "PMOD_B0",
+      "summary": "Labels 1 → 2",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-net-label-count"
+      ]
+    },
+    {
+      "id": "schematic:nets:net:SENSE_DIV",
+      "kind": "changed",
+      "title": "SENSE_DIV",
+      "summary": "+U3-1, −U3-2",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-net-connectivity"
+      ]
+    },
+    {
+      "id": "schematic:nets:net:USB_D+",
+      "kind": "changed",
+      "title": "USB_D+",
+      "summary": "Net assignment changed",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "sch-wire-net-changed"
+      ]
+    },
+    {
+      "id": "schematic:sheets:sheet-pins:mcu.kicad_sch",
+      "kind": "added",
+      "title": "Hierarchical sheet pins",
+      "summary": "2 added",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-sheet-pin-1",
+        "sch-sheet-pin-2"
+      ]
+    },
+    {
+      "id": "schematic:sheets:sheet:s1",
+      "kind": "changed",
+      "title": "S1",
+      "summary": "Sheet /Old → /New",
+      "impact": "electrical",
+      "section": "components",
+      "changeIds": [
+        "sch-sheet-change"
+      ]
+    },
+    {
+      "id": "schematic:nets:wiring:adc.kicad_sch",
+      "kind": "changed",
+      "title": "Wiring changes",
+      "summary": "1 added · 1 removed · 1 junction · 1 wire",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "sch-junction-remove",
+        "sch-wire-add"
+      ]
+    },
+    {
+      "id": "schematic:graphics:layout:adc.kicad_sch",
+      "kind": "changed",
+      "title": "Layout-only changes · at 2, 1",
+      "summary": "2 modified · 1 symbol · 1 wire",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "sch-r3-moved",
+        "sch-wire-move"
+      ]
+    },
+    {
+      "id": "schematic:graphics:layout:mcu.kicad_sch",
+      "kind": "changed",
+      "title": "Layout-only changes · Moved 5, 6→7, 8",
+      "summary": "2 modified",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "sch-u12-whitespace",
+        "sch-u2-moved"
+      ]
+    }
+  ],
+  "pcb": [
+    {
+      "id": "pcb:rules:board-constraint:1",
+      "kind": "changed",
+      "title": "Board constraints",
+      "summary": "Min width: 0.15 mm → 0.2 mm",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "pcb-board-constraint"
+      ]
+    },
+    {
+      "id": "pcb:rules:custom-rule:1",
+      "kind": "added",
+      "title": "Differential pair rule",
+      "summary": "",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "pcb-custom-rule"
+      ]
+    },
+    {
+      "id": "pcb:rules:drc-exclusions",
+      "kind": "added",
+      "title": "DRC exclusions",
+      "summary": "",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "pcb-drc-exclusion"
+      ]
+    },
+    {
+      "id": "pcb:rules:drc-severity:1",
+      "kind": "changed",
+      "title": "DRC severities",
+      "summary": "Severity: error → warning",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "pcb-drc-severity"
+      ]
+    },
+    {
+      "id": "pcb:rules:net-class-assignments",
+      "kind": "added",
+      "title": "Net class assignments",
+      "summary": "2 added",
+      "impact": "constraints",
+      "section": "rules",
+      "changeIds": [
+        "pcb-net-class-1",
+        "pcb-net-class-2"
+      ]
+    },
+    {
+      "id": "pcb:components:part>Bracket~>Bracket v2~",
+      "kind": "changed",
+      "title": "Bracket → Bracket v2",
+      "summary": "Value: Bracket → Bracket v2",
+      "impact": "assembly",
+      "section": "components",
+      "changeIds": [
+        "pcb-group-assembly"
+      ]
+    },
+    {
+      "id": "pcb:components:pad:ic2-1",
+      "kind": "changed",
+      "title": "IC2",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-ic2-pad-move"
+      ]
+    },
+    {
+      "id": "pcb:components:fp:r5",
+      "kind": "changed",
+      "title": "R5",
+      "summary": "DNP: No → Yes",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-r5-dnp"
+      ]
+    },
+    {
+      "id": "pcb:components:pad:u1-1",
+      "kind": "changed",
+      "title": "U1",
+      "summary": "3 modified · 1 pad · 1 footprint · 1 footprint graphic",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-u1-pad-move",
+        "pcb-u1-rotated",
+        "pcb-u1-silk"
+      ]
+    },
+    {
+      "id": "pcb:components:fp:u3",
+      "kind": "changed",
+      "title": "U3",
+      "summary": "Footprint: QFN-32 → QFN-48 · Description: Old → New",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-u3-lib-change"
+      ]
+    },
+    {
+      "id": "pcb:components:fp:u7",
+      "kind": "removed",
+      "title": "U7",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-u7-removed"
+      ]
+    },
+    {
+      "id": "pcb:components:fp:u8",
+      "kind": "added",
+      "title": "U8",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "components",
+      "changeIds": [
+        "pcb-u8-added"
+      ]
+    },
+    {
+      "id": "pcb:nets:net-rename:/Expansion/PMOD_A4 /Expansion/PMOD_A7",
+      "kind": "changed",
+      "title": "/Expansion/PMOD_A7",
+      "summary": "Net: /Expansion/PMOD_A4 → /Expansion/PMOD_A7",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-pmod-pad-1",
+        "pcb-pmod-pad-2",
+        "pcb-pmod-pad-3",
+        "pcb-pmod-removed-1",
+        "pcb-pmod-removed-2",
+        "pcb-pmod-track-1",
+        "pcb-pmod-track-2",
+        "pcb-pmod-track-3",
+        "pcb-pmod-via-1",
+        "pcb-pmod-via-2"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:A",
+      "kind": "changed",
+      "title": "A → C routing",
+      "summary": "Net: B → C",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-chain-a",
+        "pcb-chain-b"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:GND",
+      "kind": "removed",
+      "title": "GND routing",
+      "summary": "3 removed · 2 tracks · 1 via",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-gnd-track-1",
+        "pcb-gnd-track-2",
+        "pcb-gnd-via"
+      ]
+    },
+    {
+      "id": "pcb:nets:component:IC1",
+      "kind": "changed",
+      "title": "IC1",
+      "summary": "Net: PMOD_B6 → PMOD_B9",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-ic1-pad-1",
+        "pcb-ic1-pad-2",
+        "pcb-ic1-pad-3",
+        "pcb-ic1-pad-4",
+        "pcb-ic1-pad-5",
+        "pcb-ic1-pad-6"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:SENSE",
+      "kind": "changed",
+      "title": "SENSE routing",
+      "summary": "Layer: F.Cu → B.Cu",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-sense-arc",
+        "pcb-sense-relayer",
+        "pcb-sense-track-1",
+        "pcb-sense-track-2",
+        "pcb-sense-via"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:USB_D-",
+      "kind": "changed",
+      "title": "USB_D- → USB_D+ routing",
+      "summary": "Net: USB_D- → USB_D+",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-track-usb",
+        "pcb-track-usb-2"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:V5",
+      "kind": "changed",
+      "title": "V5 → VCC routing",
+      "summary": "Net: V5 → VCC",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-v5-vcc"
+      ]
+    },
+    {
+      "id": "pcb:nets:net:VBUS",
+      "kind": "changed",
+      "title": "VBUS → VCC routing",
+      "summary": "Net: VBUS → VCC",
+      "impact": "electrical",
+      "section": "nets",
+      "changeIds": [
+        "pcb-vbus-vcc"
+      ]
+    },
+    {
+      "id": "pcb:zones:zone:item-a",
+      "kind": "changed",
+      "title": "GND zone · B.Cu · item 1",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-item-a"
+      ]
+    },
+    {
+      "id": "pcb:zones:zone:item-b",
+      "kind": "changed",
+      "title": "GND zone · B.Cu · item 2",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-item-b"
+      ]
+    },
+    {
+      "id": "pcb:zones:zone:priority-a",
+      "kind": "changed",
+      "title": "GND zone · F.Cu · Updated 0→1",
+      "summary": "Priority: 0 → 1",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-priority-a"
+      ]
+    },
+    {
+      "id": "pcb:zones:zone:priority-b",
+      "kind": "changed",
+      "title": "GND zone · F.Cu · Updated 2→3",
+      "summary": "Priority: 2 → 3",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-priority-b"
+      ]
+    },
+    {
+      "id": "pcb:zones:zone:1",
+      "kind": "added",
+      "title": "GND zone · In1.Cu",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-gnd"
+      ]
+    },
+    {
+      "id": "pcb:zones:uuid-at-a",
+      "kind": "added",
+      "title": "Unconnected zone · F.Cu · at 10, 42",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-at-a"
+      ]
+    },
+    {
+      "id": "pcb:zones:uuid-at-b",
+      "kind": "added",
+      "title": "Unconnected zone · F.Cu · at 20, 42",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-at-b"
+      ]
+    },
+    {
+      "id": "pcb:zones:28136169-0d3a-4fc0-aaf4-0001",
+      "kind": "added",
+      "title": "Unconnected zone · In3.Cu",
+      "summary": "",
+      "impact": "fabrication",
+      "section": "nets",
+      "changeIds": [
+        "pcb-zone-unconnected"
+      ]
+    },
+    {
+      "id": "pcb:graphics:board-outline",
+      "kind": "changed",
+      "title": "Board outline",
+      "summary": "2 modified",
+      "impact": "mechanical",
+      "section": "layout",
+      "changeIds": [
+        "pcb-outline-1",
+        "pcb-outline-2"
+      ]
+    },
+    {
+      "id": "pcb:nets:net-rename:/Power/3V3 /Power/3V3_MAIN",
+      "kind": "changed",
+      "title": "/Power/3V3_MAIN",
+      "summary": "Renamed from /Power/3V3 · 3 board objects follow the schematic",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "pcb-track-1",
+        "pcb-track-2",
+        "pcb-via-3v3"
+      ]
+    },
+    {
+      "id": "pcb:graphics:graphics:Dwgs.User:graphic",
+      "kind": "changed",
+      "title": "Dwgs.User graphic",
+      "summary": "2 modified",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "pcb-dwg-1",
+        "pcb-dwg-2"
+      ]
+    },
+    {
+      "id": "pcb:graphics:fabrication-notes",
+      "kind": "changed",
+      "title": "Fabrication notes",
+      "summary": "Text: Rev C → Rev D",
+      "impact": "documentation",
+      "section": "layout",
+      "changeIds": [
+        "pcb-bfab-note",
+        "pcb-fab-note"
+      ]
+    }
+  ]
+}

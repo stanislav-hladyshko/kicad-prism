@@ -39,20 +39,20 @@ def run(dependency, user: AuthenticatedUser) -> AuthenticatedUser:
 
 class MutationDependencyTest(unittest.TestCase):
     CASES = (
-        (security.require_designer, "designer"),
-        (security.require_admin, "admin"),
-        (security.require_project_release_actor, "designer"),
+        (security.require_designer, "designer", "design:write"),
+        (security.require_admin, "admin", "admin"),
+        (security.require_project_release_actor, "designer", "release:approve"),
     )
 
     def test_a_read_only_token_is_refused_whatever_its_role(self) -> None:
-        for dependency, role in self.CASES:
+        for dependency, role, scope in self.CASES:
             with self.subTest(dependency=dependency.__name__), self.assertRaises(HTTPException) as caught:
                 run(dependency, agent(role, "api:read"))
             self.assertEqual(caught.exception.status_code, 403)
-            self.assertIn("api:write", caught.exception.detail)
+            self.assertEqual(caught.exception.detail, f"{scope} scope required")
 
     def test_a_write_token_and_a_browser_session_pass(self) -> None:
-        for dependency, role in self.CASES:
+        for dependency, role, _scope in self.CASES:
             with self.subTest(dependency=dependency.__name__):
                 run(dependency, agent(role, "api:read", "api:write"))
                 run(dependency, AuthenticatedUser(email="s@example.com", name="s", role=role))

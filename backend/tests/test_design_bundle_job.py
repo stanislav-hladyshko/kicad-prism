@@ -17,6 +17,7 @@ from unittest import mock
 from psycopg.types.json import Jsonb
 
 from app.core.config import settings
+from app.services import event_log
 from app.services.design_bundle import cli, jobs, manifest, reader, rows, store
 from app.services.design_bundle.archive import open_archive
 from app.services.job_runtime import PermanentJobError, RetryableJobError
@@ -35,6 +36,7 @@ class _Workspace:
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.scratch = scratch_schema(self, "design_bundle", ledgers=(WORKSPACE_LEDGER,))
         self.enterContext(mock.patch.object(rows, "default_connect", self.scratch.connection))
+        self.enterContext(mock.patch.object(event_log, "connect", self.scratch.connection))
         self.enterContext(mock.patch.object(workspace, "_connect", self.scratch.connection))
         self.enterContext(mock.patch.object(settings, "KICAD_PROJECTS_ROOT", str(self.tmp / "projects")))
         self.enterContext(mock.patch.object(settings, "PRISM_DESIGN_BUNDLE_ROOT", ""))
@@ -67,6 +69,10 @@ class _Workspace:
 
     def builds(self) -> list[list[str]]:
         return [argv for argv in self.invocations() if argv[:2] == ["bundle", "build"]]
+
+    def events(self) -> list[dict]:
+        with self.scratch.connect() as conn:
+            return conn.execute("SELECT * FROM ws_events ORDER BY id").fetchall()
 
 
 @requires_scratch_postgres("the design_bundle job")
@@ -110,6 +116,21 @@ class DesignBundleJobTests(_Workspace, unittest.TestCase):
         # A complete bundle is not queued again; the stub saw three builds and one version probe.
         self.assertIsNone(jobs.start_design_bundle_job("p1"))
         self.assertEqual(len(self.builds()), 3)
+
+    def test_a_completed_build_appends_bundle_built(self) -> None:
+        self.add_project()
+        job_id = jobs.start_design_bundle_job("p1")
+        payload = self.queue.rows[job_id]["payload"]
+
+        self.run_job(job_id)
+
+        events = [event for event in self.events() if event["kind"] == "bundle.built"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["project_id"], "p1")
+        self.assertEqual(
+            events[0]["payload"],
+            {"commit": payload["commit"], "revisionKey": payload["revision_key"]},
+        )
 
     def test_a_complete_row_whose_archive_is_gone_is_rebuilt(self) -> None:
         self.add_project()
@@ -337,6 +358,15 @@ class DesignBundleJobTests(_Workspace, unittest.TestCase):
         self.assertTrue(jobs.settle_design_bundle_end(ended))
         self.assertEqual(rows.get_bundle("p1", payload["bundle_key"])["state"], "failed")
         self.assertFalse(jobs.settle_design_bundle_end(ended))  # idempotent
+        failed = [event for event in self.events() if event["kind"] == "bundle.failed"]
+        self.assertEqual(len(failed), 1)
+        self.assertEqual(failed[0]["project_id"], "p1")
+        self.assertEqual(
+            set(failed[0]["payload"]),
+            {"commit", "revisionKey", "reason"},
+        )
+        self.assertEqual(failed[0]["payload"]["revisionKey"], payload["revision_key"])
+        self.assertEqual(failed[0]["payload"]["reason"], "pcbnew kept failing")
 
     def _two_commits(self) -> tuple[str, str]:
         repo = self.add_project()

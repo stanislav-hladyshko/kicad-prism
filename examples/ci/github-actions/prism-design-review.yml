@@ -1,0 +1,77 @@
+# Review a KiCad pull request with Prism.
+#
+# The project must already be registered in Prism. Configure these repository
+# settings before enabling the workflow:
+#
+#   Variable PRISM_URL      Prism's origin, for example https://prism.example.com
+#   Variable PRISM_PROJECT  The project id Prism shows for this repository
+#   Secret   PRISM_TOKEN    A personal access token with api:read,
+#                           comments:write and design:write
+#
+# `PRISM_SDK_REF` pins the SDK and CLI. Use a release tag or a full commit sha
+# in a real workflow; `main` follows the branch and can change between runs.
+
+name: Prism design review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  PRISM_SDK_REF: main
+  PRISM_PROJECT: ${{ vars.PRISM_PROJECT }}
+
+jobs:
+  design-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v4
+        with:
+          # The comparison needs both the base and the head commit.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the Prism SDK and CLI
+        run: >-
+          pip install
+          "kicad-prism @ git+https://github.com/krishna-swaroop/KiCAD-Prism@${PRISM_SDK_REF}#subdirectory=sdk/python"
+
+      - name: Sync the project from its remote
+        env:
+          PRISM_URL: ${{ vars.PRISM_URL }}
+          PRISM_TOKEN: ${{ secrets.PRISM_TOKEN }}
+        run: prism sync "$PRISM_PROJECT" --wait
+
+      - name: Compare the base and head revisions
+        env:
+          PRISM_URL: ${{ vars.PRISM_URL }}
+          PRISM_TOKEN: ${{ secrets.PRISM_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          prism compare "$PRISM_PROJECT" "$BASE_SHA" "$HEAD_SHA"
+          --wait --json > comparison.json
+
+      - name: Export the head revision's BOM
+        env:
+          PRISM_URL: ${{ vars.PRISM_URL }}
+          PRISM_TOKEN: ${{ secrets.PRISM_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          prism bom "$PRISM_PROJECT" --revision "$HEAD_SHA"
+          --csv > bom.csv
+
+      - name: Upload the review artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: prism-design-review
+          path: |
+            comparison.json
+            bom.csv

@@ -44,6 +44,18 @@ the socket gateway for a staged rollback while preserving HTTP comments.
 Admin benchmark metrics include connection count, listener reconnects,
 delivery lag, and replay failures.
 
+## Authorship
+
+Every root and reply carries `authorKind`, `authorUserId` and, when a client
+wrote it, `authorClientId`. The kinds are `user` (a signed-in person), `agent`
+(an MCP client acting for a signed-in user; owned by that user), `service` (an
+API service client), `guest` (the `AUTH_ENABLED=false` identity), `legacy` (a
+row written before authorship was recorded), `remote` (imported from a tracker
+issue) and `system` (a Prism-generated note). `authorClientId` names the MCP or
+service client and is null for a browser session. Revision history also records
+`editorAuthType` and `editorClientId`; the token id is kept for audit and never
+serialised.
+
 ## Anchor contract
 
 A canvas thread has immutable creation-commit provenance. A manual reattach

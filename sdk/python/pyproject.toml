@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kicad-prism"
+description = "KiCAD Prism API client and prism CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+dynamic = ["version"]
+
+[project.scripts]
+prism = "prism.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["prism*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "prism._version.__version__" }

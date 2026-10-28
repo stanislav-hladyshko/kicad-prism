@@ -104,11 +104,36 @@ def file_version(path: Path) -> int | None:
     return int(match.group(1)) if match else None
 
 
+#: A rule-area placement written by KiCad nightlies in early 2024, before 9.0
+#: settled on ``(placement (enabled yes) (sheetname ...))``. No released KiCad
+#: reads it, and the board's header still claims the 8.0 format.
+_NIGHTLY_PLACEMENT = re.compile(rb"\(placement\s*\(expr\b")
+
+
+def _unreadable_hint(board: Path, reason: str) -> str:
+    """What the owner can do about a parse error Prism recognises, or ``""``."""
+
+    if "sheetname" not in reason:
+        return ""
+    try:
+        content = board.read_bytes()
+    except OSError:
+        return ""
+    count = len(_NIGHTLY_PLACEMENT.findall(content))
+    if not count:
+        return ""
+    return (
+        f"The board has {count} rule-area placement(s) in the (placement (expr ...)) form a 2024 "
+        "KiCad nightly wrote, which no released KiCad reads; change each to "
+        '(placement (enabled yes) (sheetname "<sheet path>")) and commit the board again'
+    )
+
+
 def _run_python(script: str, board: Path, *, timeout: float, cancel: Callable[[], None] | None) -> None:
     """KiCad's Python, isolated like kicad-cli (its own temp and runtime directories)."""
 
     python = kicad_tools.LocalTool(
-        "kicad-python", lambda: settings.PRISM_KICAD_PYTHON.strip() or None, isolate=True, cancel=cancel
+        "kicad-python", lambda: kicad_tools.locate_kicad_python(settings), isolate=True, cancel=cancel
     )
     try:
         result = python.run(["-I", "-c", script, str(board)], timeout=timeout)
@@ -118,7 +143,11 @@ def _run_python(script: str, board: Path, *, timeout: float, cancel: Callable[[]
         lines = [line.strip() for line in result.detail().splitlines() if line.strip()]
         if "PARSE_ERROR" in result.detail():
             what = next((line.removeprefix("what():").strip() for line in lines if line.startswith("what():")), "")
-            raise KicadSourceUnreadable(f"{UNREADABLE_PREFIX}{board.name}: {(what or lines[-1])[:400]}")
+            reason = (what or lines[-1])[:400]
+            hint = _unreadable_hint(board, reason)
+            if hint:
+                reason = f"{reason.rstrip('.')}. {hint}"
+            raise KicadSourceUnreadable(f"{UNREADABLE_PREFIX}{board.name}: {reason}")
         detail = lines[-1] if lines else "no output"
         if result.returncode < 0:
             detail = f"crashed with signal {-result.returncode} ({detail})"

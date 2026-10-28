@@ -11,6 +11,10 @@ from __future__ import annotations
 
 import os
 
+# A route whose response breaks its declared model fails the test instead of
+# being served unvalidated (app.core.errors._response_validation_handler).
+os.environ.setdefault("PRISM_STRICT_RESPONSE_MODELS", "1")
+
 import pytest
 from urllib.parse import urlsplit, urlunsplit
 

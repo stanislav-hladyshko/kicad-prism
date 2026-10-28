@@ -65,7 +65,24 @@ EXPECTED: dict[str, tuple[set[str], frozenset[str]]] = {
     "catalog_qa": (WRITERS, frozenset({"qa", "admin"})),
     "catalog_admin": (WRITERS, frozenset({"admin"})),
     "remote_symbols": (READERS | {"provider"}, ALL),
+    # Ops (ADR §11, D20): admins only, and api:write does not imply ops scopes.
+    "ops_read": ({"session", "wildcard"}, frozenset({"admin"})),
+    "ops_act": ({"session", "wildcard"}, frozenset({"admin"})),
 }
+
+# Area-scoped actions: (the scope its rule names, a role the role half allows).
+AREA_ACTIONS = {
+    "comment": ("comments:write", "viewer"),
+    "design": ("design:write", "designer"),
+    "release": ("release:approve", "qa"),
+    "admin": ("admin", "admin"),
+    "catalog_write": ("catalog:write", "designer"),
+    "catalog_qa": ("catalog:qa", "qa"),
+    "catalog_admin": ("admin", "admin"),
+}
+
+HUMAN_ONLY_ACTIONS = ("release", "admin", "catalog_qa", "catalog_admin")
+HUMAN_ONLY_DETAIL = "Only a person signed in to Prism can do this; open it in Prism"
 
 
 class CallerPolicyTableTests(unittest.TestCase):
@@ -95,11 +112,63 @@ class CallerPolicyTableTests(unittest.TestCase):
 
     def test_scope_refusal_comes_before_role(self) -> None:
         caller = _Caller(role="viewer", auth_type="service_client", scopes=["api:read"])
-        self.assertEqual(policy.refusal(caller, "design"), "api:write scope required")
+        self.assertEqual(policy.refusal(caller, "design"), "design:write scope required")
         self.assertEqual(
             policy.refusal(_Caller(role="viewer", auth_type="agent", scopes=["api:write"]), "design"),
             "Designer role required",
         )
+
+    def test_effective_scopes_expand_implied_scopes(self) -> None:
+        self.assertEqual(
+            policy.effective_scopes(["api:write"]),
+            {"api:write", "api:read", *policy.AREA_WRITE_SCOPES},
+        )
+        self.assertEqual(policy.effective_scopes(["design:write"]), {"design:write", "api:read"})
+
+    def test_area_scope_grants_exactly_its_action_to_a_bearer(self) -> None:
+        for action, (scope, role) in AREA_ACTIONS.items():
+            with self.subTest(action=action, scope=scope):
+                self.assertTrue(policy.allows(_Caller(role=role, auth_type="agent", scopes=[scope]), action))
+                self.assertTrue(policy.allows(_Caller(role=role, auth_type="agent", scopes=["api:write"]), action))
+                self.assertTrue(policy.allows(_Caller(role=role, auth_type="agent", scopes=["*"]), action))
+                other = next(name for name in policy.AREA_WRITE_SCOPES if name != scope)
+                refused = _Caller(role=role, auth_type="agent", scopes=[other])
+                self.assertEqual(policy.refusal(refused, action), f"{scope} scope required")
+
+    def test_mcp_admin_holding_every_scope_is_refused_human_only_actions(self) -> None:
+        caller = _Caller(role="admin", auth_type="mcp", scopes=["*"])
+        for action in HUMAN_ONLY_ACTIONS:
+            with self.subTest(action=action):
+                self.assertEqual(policy.refusal(caller, action), HUMAN_ONLY_DETAIL)
+                with self.assertRaises(HTTPException) as ctx:
+                    policy.authorize(caller, action)
+                self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_mcp_admin_may_still_read_comment_design_and_write_catalog(self) -> None:
+        caller = _Caller(role="admin", auth_type="mcp", scopes=["*"])
+        for action in ("read", "comment", "design", "catalog_write"):
+            with self.subTest(action=action):
+                self.assertIsNone(policy.refusal(caller, action))
+                self.assertIs(policy.authorize(caller, action), caller)
+
+    def test_a_session_admin_may_do_human_only_actions(self) -> None:
+        caller = _Caller(role="admin")
+        for action in HUMAN_ONLY_ACTIONS:
+            with self.subTest(action=action):
+                self.assertTrue(policy.allows(caller, action))
+
+    def test_provider_refusal_comes_before_human_only(self) -> None:
+        caller = _Caller(role="admin", auth_type="kicad_provider", scopes=["*"])
+        expected = {
+            "release": "KiCad remote-provider tokens cannot modify Prism resources",
+            "admin": "KiCad remote-provider tokens cannot access admin APIs",
+            "catalog_qa": "KiCad remote-provider tokens cannot modify catalog resources",
+            "catalog_admin": "KiCad remote-provider tokens cannot modify catalog resources",
+        }
+        for action, detail in expected.items():
+            with self.subTest(action=action):
+                self.assertEqual(policy.refusal(caller, action), detail)
+                self.assertNotEqual(policy.refusal(caller, action), HUMAN_ONLY_DETAIL)
 
     def test_bearer_scope_rule_table(self) -> None:
         # (held scopes, required scope) -> satisfied

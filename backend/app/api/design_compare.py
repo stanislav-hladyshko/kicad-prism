@@ -8,11 +8,11 @@ import json
 from pathlib import Path
 import tempfile
 import threading
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api._helpers import get_project_for_role_or_404
 from app.core.errors import caller_errors
@@ -47,7 +47,71 @@ class DesignCompareDebugEvent(BaseModel):
     reset: bool = False
 
 
-@router.post("/{project_id}/design-compare/debug-log")
+class DesignCompareDebugLogResponse(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    status: str
+    path: str
+
+
+class StartDesignCompareResponse(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    job_id: str
+
+
+class DesignCompareSidecarRef(BaseModel):
+    """One sidecar's manifest entry; the route adds its ``url``."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    digest: Optional[str] = None
+    sizeBytes: Optional[int] = None
+    mediaType: Optional[str] = None
+    url: Optional[str] = None
+
+
+class DesignCompareResult(BaseModel):
+    """A comparison result: the finished v2 manifest, or the partial tab document.
+
+    The tabs themselves are ``prism-kicad``'s documents and are passed through
+    untouched, so they stay ``dict`` and every key the models miss is allowed.
+    """
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    # ``schema`` shadows BaseModel's deprecated helper, so the wire name is an alias.
+    schema_name: Optional[str] = Field(default=None, alias="schema")
+    resultSchema: Optional[str] = None
+    base: Optional[str | dict[str, Any]] = None
+    head: Optional[str | dict[str, Any]] = None
+    revisions: Optional[dict[str, Any]] = None
+    readiness: Optional[dict[str, Any]] = None
+    counts: Optional[dict[str, Any]] = None
+    modes: Optional[dict[str, str]] = None
+    sidecars: Optional[dict[str, DesignCompareSidecarRef]] = None
+    files: Optional[dict[str, Any]] = None
+    schematic: Optional[dict[str, Any]] = None
+    pcb: Optional[dict[str, Any]] = None
+    bom: Optional[dict[str, Any]] = None
+    stackup: Optional[dict[str, Any]] = None
+    routeMetrics: Optional[dict[str, Any]] = None
+    projectDiff: Optional[dict[str, Any]] = None
+    fabrication: Optional[dict[str, Any]] = None
+
+
+class DeleteDesignCompareResponse(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    status: str
+
+
+@router.post(
+    "/{project_id}/design-compare/debug-log",
+    response_model=DesignCompareDebugLogResponse,
+    response_model_exclude_unset=True,
+    summary="Append one comparison-view transition event to the debug log",
+)
 async def append_design_compare_debug_log(
     project_id: str,
     request: DesignCompareDebugEvent,
@@ -89,7 +153,12 @@ async def append_design_compare_debug_log(
     return {"status": "logged", "path": str(_DEBUG_LOG_PATH)}
 
 
-@router.post("/{project_id}/design-compare")
+@router.post(
+    "/{project_id}/design-compare",
+    response_model=StartDesignCompareResponse,
+    response_model_exclude_unset=True,
+    summary="Queue a design comparison between two commits",
+)
 async def start_design_compare(
     project_id: str,
     request: DesignCompareRequest,
@@ -108,7 +177,12 @@ async def start_design_compare(
         return {"job_id": job_id}
 
 
-@router.get("/{project_id}/design-compare/{job_id}")
+@router.get(
+    "/{project_id}/design-compare/{job_id}",
+    response_model=DesignCompareResult,
+    response_model_exclude_unset=True,
+    summary="Read a comparison's result",
+)
 async def design_compare_result(
     project_id: str, job_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -140,7 +214,17 @@ async def design_compare_result(
     return result
 
 
-@router.get("/{project_id}/design-compare/{job_id}/sidecars/{digest}")
+@router.get(
+    "/{project_id}/design-compare/{job_id}/sidecars/{digest}",
+    response_class=FileResponse,
+    responses={
+        200: {
+            "content": {"application/json": {}, "image/svg+xml": {}},
+            "description": "One comparison sidecar (a tab document or a layer render)",
+        }
+    },
+    summary="Download one comparison sidecar",
+)
 async def design_compare_sidecar(
     project_id: str,
     job_id: str,
@@ -177,7 +261,12 @@ async def design_compare_sidecar(
     )
 
 
-@router.delete("/{project_id}/design-compare/{job_id}")
+@router.delete(
+    "/{project_id}/design-compare/{job_id}",
+    response_model=DeleteDesignCompareResponse,
+    response_model_exclude_unset=True,
+    summary="Cancel a comparison or forget its finished result",
+)
 async def delete_design_compare(
     project_id: str, job_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):

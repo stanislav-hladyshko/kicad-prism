@@ -158,6 +158,15 @@ class GitHubWebhookPostgresTests(unittest.TestCase):
 
         response = run(webhooks_api.tracker_webhook("github", "cn_gh1", _Request(body, headers)))
         self.assertEqual(response.status_code, 200)
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import tracker_webhooks as models
+
+        payload = json.loads(response.body)
+        self.assertEqual(
+            models.WebhookAccepted.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
         row = self.conn.execute(
             "SELECT delivery_id FROM remote_deliveries WHERE connector_id = 'cn_gh1'"
         ).fetchone()

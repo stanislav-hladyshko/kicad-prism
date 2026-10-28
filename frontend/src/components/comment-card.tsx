@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { CommentAuthorKindBadge } from "@/components/comment-author-kind-badge";
 import { CommentSeverityBadge } from "@/components/comment-severity-badge";
 import { TrackerIssueAction } from "@/features/tracker-integration/tracker-issue-action";
 import { formatCommentTimestamp } from "@/components/comment-date";
@@ -93,7 +94,14 @@ export function CommentCard({
         >
             <div className="flex shrink-0 items-start justify-between gap-2 border-b px-3 py-2">
                 <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{comment.author}</div>
+                    <div className="flex min-w-0 items-center gap-1">
+                        <span className="truncate text-sm font-medium">{comment.author}</span>
+                        <CommentAuthorKindBadge
+                            authorKind={comment.authorKind}
+                            authorClientId={comment.authorClientId}
+                            authorClientName={comment.authorClientName}
+                        />
+                    </div>
                     <div className="text-[10px] text-muted-foreground">
                         {formatCommentTimestamp(comment.timestamp)}
                         {comment.elementRef ? ` · ${comment.elementRef}` : ""}
@@ -146,7 +154,14 @@ export function CommentCard({
                 <div className="space-y-2 border-t bg-muted/30 px-3 py-2">
                     {comment.replies.slice(-3).map((item) => (
                         <div key={item.id ?? `${item.timestamp}-${item.author}-${item.content}`} className="text-xs">
-                            <span className="font-medium">{item.author}</span>
+                            <span className="flex items-center gap-1">
+                                <span className="font-medium">{item.author}</span>
+                                <CommentAuthorKindBadge
+                                    authorKind={item.authorKind}
+                                    authorClientId={item.authorClientId}
+                                    authorClientName={item.authorClientName}
+                                />
+                            </span>
                             <ThreadMessage
                                 projectId={projectId}
                                 thread={comment}

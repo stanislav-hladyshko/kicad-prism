@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 import threading
 import time
 from dataclasses import dataclass, field
@@ -9,6 +8,7 @@ from typing import Any, Callable, Mapping
 
 from app.core.config import settings
 from app.services.job_service import JobService, jobs
+from app.services.tree_removal import remove_tree
 
 
 class JobCancelled(RuntimeError):
@@ -235,7 +235,34 @@ class JobContext:
 
     def cleanup_staging(self) -> None:
         if self.staging_dir.exists():
-            shutil.rmtree(self.staging_dir, ignore_errors=True)
+            remove_tree(self.staging_dir, ignore_errors=True)
 
 
 JobHandler = Callable[[JobContext], JobResult]
+
+
+class JobLogNotFound(LookupError):
+    """The job's log is missing or outside the job state root."""
+
+
+def tail_job_log(path: Path, line_count: int) -> list[str]:
+    """The last ``line_count`` lines of a job log under ``job_state_root()/jobs``.
+
+    Reads at most the final 256 KiB. A path outside that root, or a missing
+    file, raises ``JobLogNotFound``: a log path comes from the job row, so it is
+    checked rather than trusted.
+    """
+
+    root = (job_state_root() / "jobs").resolve()
+    resolved = Path(path).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as error:
+        raise JobLogNotFound(str(path)) from error
+    if not resolved.is_file():
+        raise JobLogNotFound(str(path))
+    with resolved.open("rb") as handle:
+        size = handle.seek(0, 2)
+        handle.seek(max(0, size - 256 * 1024))
+        text = handle.read(256 * 1024).decode("utf-8", errors="replace")
+    return text.splitlines()[-line_count:]

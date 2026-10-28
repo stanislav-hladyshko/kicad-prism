@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -134,7 +134,12 @@ async def begin_oauth(
     return OAuthBeginResponse(authorizeUrl=payload["authorizeUrl"])
 
 
-@router.get("/oauth/callback")
+@router.get(
+    "/oauth/callback",
+    response_class=Response,
+    summary="Complete account linking and return the browser to the app",
+    responses={302: {"description": "Redirect back to the app with the link result."}},
+)
 async def oauth_callback(
     request: Request,
     code: str = Query(default=""),

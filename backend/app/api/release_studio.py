@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from app.api import release_studio_models as models
 from app.api._helpers import (
     SANDBOXED_CONTENT_HEADERS,
     authorized_project,
@@ -91,7 +92,11 @@ class ReviewDecisionRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Vendor profiles and source discovery
 # ---------------------------------------------------------------------------
-@router.get("/{project_id}/release-studio/vendor-profiles")
+@router.get(
+    "/{project_id}/release-studio/vendor-profiles",
+    response_model=models.VendorProfileList,
+    summary="List the vendor pack profiles Release Studio offers",
+)
 async def list_vendor_profiles(
     project_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -101,7 +106,11 @@ async def list_vendor_profiles(
     return {"profiles": public_profile_payload()}
 
 
-@router.get("/{project_id}/release-studio/source")
+@router.get(
+    "/{project_id}/release-studio/source",
+    response_model=models.SourceResponse,
+    summary="Discover KiCad sources, variants and BOM presets at a commit",
+)
 async def get_source(
     project_id: str,
     commit_sha: str = Query(..., min_length=40, max_length=40),
@@ -144,7 +153,11 @@ async def get_source(
     return {"source": source, "ipc": public_ipc_payload(), "forge": forge_summary(project.get("repo_url"))}
 
 
-@router.put("/{project_id}/release-studio/source/defaults")
+@router.put(
+    "/{project_id}/release-studio/source/defaults",
+    response_model=models.SourceDefaultsResponse,
+    summary="Remember the Source picks for the next release",
+)
 async def save_source_defaults(
     project_id: str,
     request: SourceDefaultsRequest,
@@ -157,7 +170,11 @@ async def save_source_defaults(
     return {"defaults": defaults}
 
 
-@router.get("/{project_id}/release-studio/tags/{tag}")
+@router.get(
+    "/{project_id}/release-studio/tags/{tag}",
+    response_model=models.ReleaseTagCheck,
+    summary="Whether the forge already has a release tag",
+)
 async def check_release_tag(
     project_id: str,
     tag: str,
@@ -171,7 +188,12 @@ async def check_release_tag(
     return await asyncio.to_thread(check)
 
 
-@router.get("/{project_id}/release-studio/impedance-template.csv")
+@router.get(
+    "/{project_id}/release-studio/impedance-template.csv",
+    response_class=Response,
+    summary="Download the controlled-impedance template",
+    responses={200: {"content": {"text/csv": {}}, "description": "The template CSV."}},
+)
 async def impedance_template(
     project_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -191,7 +213,11 @@ async def impedance_template(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{project_id}/release-studio/candidates")
+@router.get(
+    "/{project_id}/release-studio/candidates",
+    response_model=models.CandidateList,
+    summary="List release candidates with their build attempts",
+)
 async def list_candidates(
     project_id: str,
     config_key: str | None = Query(None),
@@ -205,7 +231,11 @@ async def list_candidates(
     return {"candidates": candidates}
 
 
-@router.post("/{project_id}/release-studio/candidates")
+@router.post(
+    "/{project_id}/release-studio/candidates",
+    response_model=models.CandidateCreated,
+    summary="Queue a release build (idempotent on the candidate's build key)",
+)
 async def create_candidate(
     project_id: str,
     request: CandidateRequest,
@@ -253,7 +283,11 @@ def _create_candidate(
     return {"job": job}
 
 
-@router.get("/{project_id}/release-studio/candidates/{candidate_id}")
+@router.get(
+    "/{project_id}/release-studio/candidates/{candidate_id}",
+    response_model=models.CandidateWithBuilds,
+    summary="Read one release candidate with its build attempts",
+)
 async def get_candidate(
     project_id: str, candidate_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -266,7 +300,11 @@ async def get_candidate(
     return candidate
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}",
+    response_model=models.BuildDetail,
+    summary="A build with its configuration, readiness and sign-offs",
+)
 async def get_build(
     project_id: str, build_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -291,7 +329,12 @@ def _remember_source_defaults(project_id: str, **fields: str) -> None:
         logger.exception("Could not persist Release Studio source defaults for project %s", project_id)
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/dossier")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/dossier",
+    response_class=Response,
+    summary="Download a build's dossier archive",
+    responses={200: {"content": {"application/gzip": {}}, "description": "The dossier tarball."}},
+)
 async def download_dossier(
     project_id: str, build_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -305,7 +348,12 @@ async def download_dossier(
     )
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/vendor-packs/{vendor_id}")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/vendor-packs/{vendor_id}",
+    response_class=Response,
+    summary="Download one vendor pack for a build",
+    responses={200: {"content": {"application/zip": {}}, "description": "The vendor pack zip."}},
+)
 async def download_build_vendor_pack(
     project_id: str,
     build_id: str,
@@ -322,7 +370,11 @@ async def download_build_vendor_pack(
     )
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/sheets")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/sheets",
+    response_model=models.DocumentSheetList,
+    summary="List the composed documentation sheets of a build",
+)
 async def list_document_sheets(
     project_id: str,
     build_id: str,
@@ -348,7 +400,12 @@ async def list_document_sheets(
     return {"sheets": [by_key[key] for key in sorted(by_key)]}
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/sheets/{sheet_key}.pdf")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/sheets/{sheet_key}.pdf",
+    response_class=Response,
+    summary="Preview one composed documentation sheet",
+    responses={200: {"content": {"application/pdf": {}}, "description": "The sheet PDF."}},
+)
 async def preview_document_sheet(
     project_id: str,
     build_id: str,
@@ -368,7 +425,22 @@ async def preview_document_sheet(
     )
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/members/{member_path:path}")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/members/{member_path:path}",
+    response_class=Response,
+    summary="Serve one released member out of the dossier, digest-checked",
+    responses={
+        200: {
+            "content": {
+                "application/octet-stream": {},
+                "application/pdf": {},
+                "image/svg+xml": {},
+                "text/plain": {},
+            },
+            "description": "The released member bytes.",
+        }
+    },
+)
 async def download_member(
     project_id: str,
     build_id: str,
@@ -419,7 +491,11 @@ async def download_member(
     )
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/logs")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/logs",
+    response_model=models.BuildLogs,
+    summary="Which steps have a log, how long each took, and how it ended",
+)
 async def list_build_logs(
     project_id: str, build_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -429,7 +505,12 @@ async def list_build_logs(
     return ARCHIVES.logs(project_id, build_id)
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/logs/{step_id}")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/logs/{step_id}",
+    response_class=Response,
+    summary="Serve one build step's full log",
+    responses={200: {"content": {"text/plain": {}}, "description": "The step's full log."}},
+)
 async def download_build_log(
     project_id: str,
     build_id: str,
@@ -447,7 +528,12 @@ async def download_build_log(
     return Response(content=payload, media_type="text/plain; charset=utf-8")
 
 
-@router.get("/{project_id}/release-studio/builds/{build_id}/build-evidence")
+@router.get(
+    "/{project_id}/release-studio/builds/{build_id}/build-evidence",
+    response_class=Response,
+    summary="Download a build's captured evidence archive",
+    responses={200: {"content": {"application/gzip": {}}, "description": "The evidence tarball."}},
+)
 async def download_build_evidence(
     project_id: str, build_id: str, user: AuthenticatedUser = Depends(require_viewer)
 ):
@@ -466,7 +552,11 @@ async def download_build_evidence(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{project_id}/release-studio/builds/{build_id}/approvals")
+@router.post(
+    "/{project_id}/release-studio/builds/{build_id}/approvals",
+    response_model=models.ApprovalDecision,
+    summary="Record a designer or QA approval on a build",
+)
 async def approve_build(
     project_id: str,
     build_id: str,
@@ -486,7 +576,11 @@ async def approve_build(
     )
 
 
-@router.post("/{project_id}/release-studio/builds/{build_id}/approvals/withdraw")
+@router.post(
+    "/{project_id}/release-studio/builds/{build_id}/approvals/withdraw",
+    response_model=models.ApprovalDecision,
+    summary="Withdraw a previously recorded approval",
+)
 async def withdraw_build_approval(
     project_id: str,
     build_id: str,
@@ -505,7 +599,11 @@ async def withdraw_build_approval(
     )
 
 
-@router.post("/{project_id}/release-studio/builds/{build_id}/publish")
+@router.post(
+    "/{project_id}/release-studio/builds/{build_id}/publish",
+    response_model=models.PublishResult,
+    summary="Zip the dossier, attach selected vendor packs, and publish the forge release",
+)
 async def publish_build(
     project_id: str,
     build_id: str,

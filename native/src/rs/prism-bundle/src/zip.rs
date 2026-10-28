@@ -342,13 +342,35 @@ impl FileSource {
     }
 }
 
+#[cfg(unix)]
+fn read_exact_at(file: &std::fs::File, buffer: &mut [u8], offset: u64) -> io::Result<()> {
+    std::os::unix::fs::FileExt::read_exact_at(file, buffer, offset)
+}
+
+/// `seek_read` may return fewer bytes than asked: loop until the buffer is full.
+#[cfg(windows)]
+fn read_exact_at(file: &std::fs::File, mut buffer: &mut [u8], mut offset: u64) -> io::Result<()> {
+    while !buffer.is_empty() {
+        match std::os::windows::fs::FileExt::seek_read(file, buffer, offset) {
+            Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+            Ok(read) => {
+                buffer = &mut buffer[read..];
+                offset += read as u64;
+            }
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
 impl ReadAt for FileSource {
     fn length(&self) -> u64 {
         self.length
     }
 
     fn read_exact_at(&self, buffer: &mut [u8], offset: u64) -> io::Result<()> {
-        std::os::unix::fs::FileExt::read_exact_at(&self.file, buffer, offset)
+        read_exact_at(&self.file, buffer, offset)
     }
 }
 

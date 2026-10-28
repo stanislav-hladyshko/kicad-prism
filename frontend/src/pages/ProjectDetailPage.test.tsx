@@ -39,6 +39,48 @@ function renderPage(path = "/project/p1") {
     );
 }
 
+describe("ProjectDetailPage window.prism", () => {
+    beforeEach(() => {
+        vi.mocked(fetchJson).mockImplementation(async (input) => {
+            const url = String(input);
+            if (url.endsWith("/branches")) return BRANCHES;
+            if (url.includes("/overview")) {
+                return {
+                    project: { id: "p1", name: "Board", description: "", path: "", last_modified: "" },
+                    readme: null,
+                };
+            }
+            throw new Error(`unrouted ${url}`);
+        });
+    });
+
+    afterEach(() => {
+        vi.mocked(fetchJson).mockReset();
+        delete window.prism;
+    });
+
+    it("installs while the page is mounted, links the view and removes itself", async () => {
+        const page = renderPage("/project/p1?section=visualizers&tab=pcb&sel=R1,U3");
+        await screen.findAllByText("Board");
+
+        expect(window.prism?.version).toBe("v1");
+        expect(window.prism?.projectId).toBe("p1");
+        expect(window.prism?.link()).toBe(
+            `${window.location.origin}/project/p1?section=visualizers&tab=pcb&sel=R1%2CU3`,
+        );
+
+        await window.prism?.open({ tab: "sch" });
+        await waitFor(() => {
+            const url = new URL(window.prism!.link());
+            expect(url.searchParams.get("tab")).toBe("sch");
+            expect(url.searchParams.get("sel")).toBe("R1,U3");
+        });
+
+        page.unmount();
+        expect(window.prism).toBeUndefined();
+    });
+});
+
 describe("ProjectDetailPage branch polling", () => {
     beforeEach(() => {
         vi.mocked(fetchJson).mockImplementation(async (input) => {

@@ -7,10 +7,16 @@ use crate::process;
 use prism_bundle::{Failure, Outcome};
 use std::ffi::OsStr;
 use std::io::Write;
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+
+/// What git inherits from the environment. Windows also needs `SystemRoot`
+/// and the temp and command-search variables to start at all.
+#[cfg(unix)]
+const INHERITED_ENV: &[&str] = &["PATH"];
+#[cfg(windows)]
+const INHERITED_ENV: &[&str] = &["PATH", "SystemRoot", "TEMP", "TMP", "PATHEXT", "COMSPEC"];
 
 static HOME_SERIAL: AtomicU64 = AtomicU64::new(0);
 
@@ -58,8 +64,10 @@ impl Git {
     fn command(&self, directory: &Path, args: &[&OsStr]) -> Command {
         let mut command = Command::new("git");
         command.env_clear();
-        if let Some(path) = std::env::var_os("PATH") {
-            command.env("PATH", path);
+        for name in INHERITED_ENV {
+            if let Some(value) = std::env::var_os(name) {
+                command.env(name, value);
+            }
         }
         command
             .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -70,7 +78,8 @@ impl Git {
             command.arg("-c").arg(setting);
         }
         command.arg("-C").arg(directory).args(args);
-        command.process_group(0);
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
         command
     }
 
@@ -99,7 +108,7 @@ impl Git {
         let mut child = command
             .spawn()
             .map_err(|error| git_failed(&format!("git could not be started: {error}")))?;
-        process::set_child_group(i32::try_from(child.id()).unwrap_or(0));
+        process::track_child(&child);
         if let (Some(bytes), Some(mut pipe)) = (stdin, child.stdin.take()) {
             let bytes = bytes.to_vec();
             std::thread::spawn(move || {
@@ -107,7 +116,7 @@ impl Git {
             });
         }
         let output = child.wait_with_output();
-        process::set_child_group(0);
+        process::untrack_child();
         let output = output.map_err(|error| git_failed(&format!("git did not finish: {error}")))?;
         if output.status.success() {
             Ok(Ok(output.stdout))
@@ -147,11 +156,16 @@ pub fn git_failed(message: &str) -> Failure {
     failure
 }
 
-/// Whether `git-lfs` is on `PATH`.
+/// Whether `git-lfs` is on `PATH` (`git-lfs.exe` on Windows).
 #[must_use]
 pub fn lfs_on_path() -> bool {
+    let name = if cfg!(windows) {
+        "git-lfs.exe"
+    } else {
+        "git-lfs"
+    };
     std::env::var_os("PATH")
-        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join("git-lfs").is_file()))
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(name).is_file()))
 }
 
 /// Split NUL-terminated records.

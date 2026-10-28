@@ -1,0 +1,46 @@
+# Review a KiCad merge request with Prism (GitLab CI).
+#
+# The project must already be registered in Prism. Configure these CI/CD
+# variables in the repository or group settings before enabling the job:
+#
+#   PRISM_URL      Prism's origin, for example https://prism.example.com
+#   PRISM_PROJECT  The project id Prism shows for this repository
+#   PRISM_TOKEN    A masked personal access token with api:read,
+#                  comments:write and design:write
+#
+# `PRISM_SDK_REF` pins the SDK and CLI. Use a release tag or a full commit sha
+# in a real pipeline; `main` follows the branch and can change between runs.
+
+stages:
+  - design-review
+
+variables:
+  PRISM_SDK_REF: "main"
+
+prism-design-review:
+  stage: design-review
+  image: python:3.12-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    BASE_SHA: $CI_MERGE_REQUEST_DIFF_BASE_SHA
+    HEAD_SHA: $CI_COMMIT_SHA
+  before_script:
+    # git is needed for the pip install below; the slim image does not ship it.
+    - apt-get update && apt-get install -y --no-install-recommends git
+    - >-
+      pip install
+      "kicad-prism @ git+https://github.com/krishna-swaroop/KiCAD-Prism@${PRISM_SDK_REF}#subdirectory=sdk/python"
+  script:
+    - prism sync "$PRISM_PROJECT" --wait
+    - >-
+      prism compare "$PRISM_PROJECT" "$BASE_SHA" "$HEAD_SHA"
+      --wait --json > comparison.json
+    - >-
+      prism bom "$PRISM_PROJECT" --revision "$HEAD_SHA"
+      --csv > bom.csv
+  artifacts:
+    when: always
+    paths:
+      - comparison.json
+      - bom.csv

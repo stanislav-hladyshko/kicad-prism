@@ -27,7 +27,7 @@ from typing import Any, Mapping, Sequence
 from app.core.config import settings
 from app.release_studio.documents import render_cache
 from app.release_studio.documents.layout import Artwork, Rect
-from app.services.kicad_tools import KicadTool, ToolError, ToolResult
+from app.services.kicad_tools import KicadTool, ToolError, ToolResult, locate_kicad_cli
 
 #: Layer and drill-map plots: bounded so a wedged plot fails one sheet.
 PLOT_TIMEOUT_SECONDS = 600
@@ -645,6 +645,9 @@ def _configure_cairo_library_path() -> None:
     when Release Studio asks CairoSVG for the matching PDF page.
     """
 
+    if sys.platform == "win32":
+        _add_windows_cairo_directory()
+        return
     if sys.platform != "darwin":
         return
     candidates = [settings.PRISM_CAIRO_LIBRARY_DIR, "/opt/homebrew/lib", "/usr/local/lib"]
@@ -663,6 +666,19 @@ def _configure_cairo_library_path() -> None:
     entries = [entry for entry in current.split(os.pathsep) if entry]
     if str(library_dir) not in entries:
         os.environ[variable] = os.pathsep.join([str(library_dir), *entries])
+
+
+def _add_windows_cairo_directory() -> None:
+    """Let CairoSVG load ``cairo-2.dll`` from ``PRISM_CAIRO_LIBRARY_DIR`` or KiCad's ``bin``."""
+
+    candidates = [settings.PRISM_CAIRO_LIBRARY_DIR]
+    kicad_cli = locate_kicad_cli()
+    if kicad_cli:
+        candidates.append(str(Path(kicad_cli).parent))
+    for candidate in candidates:
+        if candidate and (Path(candidate) / "cairo-2.dll").is_file():
+            os.add_dll_directory(candidate)
+            return
 
 
 def acquire_drill_map(

@@ -19,6 +19,7 @@ import json
 from typing import Any, Mapping, Sequence
 
 from app.release_studio.canonical import sha256_canonical
+from app.services import event_log
 from app.services.release_studio_service import (
     ReleaseStudioError,
     _new_id,
@@ -484,9 +485,29 @@ def orphaned_build_job_ids(limit: int = 100) -> list[str]:
 LIVE_STATUSES = frozenset({"running", "cancel_requested"})
 
 
+def _record_candidate_built(job: Mapping[str, Any]) -> None:
+    """Append ``release.candidate_built`` once its job committed (the end-of-job seam)."""
+
+    if str(job.get("status") or "") != "completed":
+        return
+    metadata = dict(job.get("result_metadata") or {})
+    build_id = str(metadata.get("build_id") or "")
+    commit = str(metadata.get("commit") or "")
+    project_id = str(metadata.get("project_id") or job.get("project_id") or "")
+    if not (build_id and commit and project_id):
+        return
+    event_log.record_quietly(
+        "release.candidate_built",
+        project_id=project_id,
+        payload={"buildId": build_id, "commit": commit},
+    )
+
+
 def settle_build_job(job: Mapping[str, Any]) -> int:
     """End every attempt of ``job`` whose execution is over, as the job ended.
 
+    - a completed job appends ``release.candidate_built`` for its build (the
+      job's completion transaction committed the build row first);
     - an attempt still executing (job running or cancelling at its fence) is left alone;
     - a cancelled job cancels its attempts (the candidate goes back to draft;
       an expired cancellation moves the job one fence on, hence any fence);
@@ -496,6 +517,7 @@ def settle_build_job(job: Mapping[str, Any]) -> int:
     Returns how many attempts were settled. Idempotent.
     """
 
+    _record_candidate_built(job)
     job_status = str(job.get("status") or "")
     job_fence = int(job.get("fence") or 0)
     settled = 0

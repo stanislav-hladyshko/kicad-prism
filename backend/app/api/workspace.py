@@ -2,16 +2,32 @@ import asyncio
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, Request, Response
+from pydantic import BaseModel, ConfigDict
 
 from app.core.security import AuthenticatedUser, require_viewer
 from app.services import pipeline_service
+from app.services import project_service
 from app.services.workspace_service import workspace
 from app.api._helpers import _row_to_project
+from app.api.folders import FolderNode
 
 router = APIRouter(dependencies=[Depends(require_viewer)])
 
 
-@router.get("/bootstrap")
+class WorkspaceBootstrap(BaseModel):
+    """Everything the workspace needs to paint before its first refresh."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    projects: List[project_service.Project]
+    folders: List[FolderNode]
+    # No system exists in this tree yet (System Builder was removed); the key
+    # stays because the workspace reads it.
+    systems: List[Dict[str, Any]]
+    version: int
+
+
+@router.get("/bootstrap", response_model=WorkspaceBootstrap, summary="Projects, folders and version for the workspace")
 async def get_workspace_bootstrap(
     request: Request,
     response: Response,

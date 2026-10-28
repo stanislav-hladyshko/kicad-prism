@@ -1,0 +1,277 @@
+[
+  {
+    "componentUid": "fixture:R1",
+    "reference": "R1",
+    "value": "10k",
+    "footprint": "R_0603",
+    "fields": {
+      "Value": "10k",
+      "Footprint": "R_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic thick-film resistor",
+      "Datasheet": "https://example.invalid/datasheets/resistor.pdf",
+      "Manufacturer": "Synthetic Ohm",
+      "Manufacturer Part Number": "SYN-R-10K",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-10K-0603",
+      "Tolerance": "1%",
+      "_internal_note": "fixture only"
+    }
+  },
+  {
+    "componentUid": "fixture:R2",
+    "reference": "R2",
+    "value": "10k",
+    "footprint": "R_0603",
+    "fields": {
+      "Value": "10k",
+      "Footprint": "R_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic thick-film resistor",
+      "Manufacturer": "Synthetic Ohm",
+      "Manufacturer Part Number": "SYN-R-10K",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-10K-0603",
+      "Tolerance": "1%"
+    }
+  },
+  {
+    "componentUid": "fixture:R3",
+    "reference": "R3",
+    "value": "10K",
+    "footprint": "R_0603",
+    "fields": {
+      "Value": "10K",
+      "Footprint": "R_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic thick-film resistor",
+      "Manufacturer": "Synthetic Ohm",
+      "Manufacturer Part Number": "SYN-R-10K",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-10K-0603",
+      "Tolerance": "1%"
+    }
+  },
+  {
+    "componentUid": "fixture:R10",
+    "reference": "R10",
+    "value": "10k",
+    "footprint": "R_0603",
+    "fields": {
+      "Value": "10k",
+      "Footprint": "R_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic thick-film resistor",
+      "Manufacturer": "Synthetic Ohm",
+      "Manufacturer Part Number": "SYN-R-10K",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-10K-0603",
+      "Tolerance": "1%"
+    }
+  },
+  {
+    "componentUid": "fixture:C1",
+    "reference": "C1",
+    "value": "4.7uF",
+    "footprint": "C_0603",
+    "fields": {
+      "Value": "4.7uF",
+      "Footprint": "C_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic ceramic capacitor",
+      "Manufacturer": "Synthetic Ceramics",
+      "Manufacturer Part Number": "SYN-C-47UF",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-47UF-0603",
+      "Voltage Rating": "16V"
+    }
+  },
+  {
+    "componentUid": "fixture:C2",
+    "reference": "C2",
+    "value": "4.7uF",
+    "footprint": "C_0603",
+    "fields": {
+      "Value": "4.7uF",
+      "Footprint": "C_0603",
+      "DNP": "Yes",
+      "In BOM": "Yes",
+      "Description": "Synthetic ceramic capacitor",
+      "Manufacturer": "Synthetic Ceramics",
+      "Manufacturer Part Number": "SYN-C-47UF",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-47UF-0603",
+      "Voltage Rating": "16V"
+    }
+  },
+  {
+    "componentUid": "fixture:C3",
+    "reference": "C3",
+    "value": "4.7uF",
+    "footprint": "C_0603",
+    "fields": {
+      "Value": "4.7uF",
+      "Footprint": "C_0603",
+      "DNP": "No",
+      "In BOM": "No",
+      "Description": "Synthetic ceramic capacitor excluded from the assembly",
+      "Manufacturer": "Synthetic Ceramics",
+      "Manufacturer Part Number": "SYN-C-47UF",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-47UF-0603",
+      "Voltage Rating": "16V"
+    }
+  },
+  {
+    "componentUid": "fixture:U1",
+    "reference": "U1",
+    "value": "MCU-A",
+    "footprint": "QFN-32",
+    "fields": {
+      "Value": "MCU-A",
+      "Footprint": "QFN-32",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic microcontroller",
+      "Datasheet": "https://example.invalid/datasheets/mcu-a.pdf",
+      "Manufacturer": "Synthetic Semiconductor",
+      "Manufacturer Part Number": "SYN-MCU-A",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-MCU-A",
+      "Supplier": "Synthetic Distribution",
+      "_sheet": "/",
+      "kicad_unit": "1"
+    }
+  },
+  {
+    "componentUid": "fixture:U2",
+    "reference": "U2",
+    "value": "MCU-A",
+    "footprint": "QFN-32",
+    "fields": {
+      "Value": "MCU-A",
+      "Footprint": "QFN-32",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic microcontroller",
+      "Manufacturer": "Synthetic Semiconductor",
+      "Manufacturer Part Number": "SYN-MCU-A",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-MCU-A",
+      "Supplier": "Synthetic Distribution",
+      "kicad_unit": "2"
+    }
+  },
+  {
+    "componentUid": "fixture:D1",
+    "reference": "D1",
+    "value": "LED-RED",
+    "footprint": "LED_0603",
+    "fields": {
+      "Value": "LED-RED",
+      "Footprint": "LED_0603",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic red indicator LED",
+      "Datasheet": "https://example.invalid/datasheets/led-red.pdf",
+      "Manufacturer": "Synthetic Opto",
+      "Manufacturer Part Number": "SYN-LED-RED",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-LED-RED",
+      "Supplier": "Synthetic Distribution"
+    }
+  },
+  {
+    "componentUid": "fixture:D2",
+    "reference": "D2",
+    "value": "LED-RED",
+    "footprint": "LED_0603",
+    "fields": {
+      "Value": "LED-RED",
+      "Footprint": "LED_0603",
+      "DNP": "Yes",
+      "In BOM": "Yes",
+      "Description": "Synthetic red indicator LED",
+      "Manufacturer": "Synthetic Opto",
+      "Manufacturer Part Number": "SYN-LED-RED",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-LED-RED",
+      "Supplier": "Synthetic Distribution"
+    }
+  },
+  {
+    "componentUid": "fixture:J1",
+    "reference": "J1",
+    "value": "USB-C",
+    "footprint": "USB_C_Receptacle",
+    "fields": {
+      "Value": "USB-C",
+      "Footprint": "USB_C_Receptacle",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic USB-C receptacle",
+      "Datasheet": "https://example.invalid/datasheets/usb-c.pdf",
+      "Manufacturer": "Synthetic Connectors",
+      "Manufacturer Part Number": "SYN-USB-C",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-USB-C",
+      "Supplier": "Synthetic Distribution"
+    }
+  },
+  {
+    "componentUid": "fixture:Q1",
+    "reference": "Q1",
+    "value": "2N7002",
+    "footprint": "SOT-23",
+    "fields": {
+      "Value": "2N7002",
+      "Footprint": "SOT-23",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic N-channel MOSFET",
+      "Manufacturer": "Synthetic Semiconductor",
+      "Manufacturer Part Number": "SYN-2N7002",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-2N7002"
+    }
+  },
+  {
+    "componentUid": "fixture:L1",
+    "reference": "L1",
+    "value": "10uH",
+    "footprint": "L_0805",
+    "fields": {
+      "Value": "10uH",
+      "Footprint": "L_0805",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic power inductor",
+      "Manufacturer": "Synthetic Magnetics",
+      "Manufacturer Part Number": "SYN-L-10UH",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-10UH-0805"
+    }
+  },
+  {
+    "componentUid": "fixture:Y1",
+    "reference": "Y1",
+    "value": "16MHz",
+    "footprint": "Crystal_3225",
+    "fields": {
+      "Value": "16MHz",
+      "Footprint": "Crystal_3225",
+      "DNP": "No",
+      "In BOM": "Yes",
+      "Description": "Synthetic crystal oscillator",
+      "Manufacturer": "Synthetic Timing",
+      "Manufacturer Part Number": "SYN-Y-16MHZ",
+      "Vendor": "Synthetic Parts",
+      "Vendor Part Number": "SP-16MHZ-3225"
+    }
+  }
+]

@@ -151,7 +151,7 @@ async def authorize_submit(
     return RedirectResponse(target, status_code=303)
 
 
-@router.post("/token", response_model=TokenExchangeResponse)
+@router.post("/token", response_model=TokenExchangeResponse, operation_id="agent_token")
 async def token(
     code: str = Form(...),
     redirect_uri: str = Form(...),

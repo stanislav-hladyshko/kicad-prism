@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
-from app.services import comment_bundle, comments_revisions
+from app.services import comment_bundle, comment_client_names, comments_revisions
 from app.services.comments_revisions import Editor
 
 # 1.1 adds authorUserId/authorKind, reply ids, revision/updatedAt and the anchor
@@ -38,14 +38,14 @@ _COMMENT_COLUMNS = """
     scope, base_commit, compare_commit, comparison_domain,
     file_path, semantic_item_id, anchor_kind,
     forge_provider, forge_issue_id, forge_issue_url, forge_sync_state,
-    author_user_id, author_kind, revision, updated_at, deleted_at,
+    author_user_id, author_kind, author_client_id, revision, updated_at, deleted_at,
     anchor_commit, anchor_revision_key, anchor_design_key, anchor_source, anchor_state,
     selected_side, project_relative_path, content_format
 """
 
 _REPLY_COLUMNS = """
     id, comment_id, author, timestamp, content,
-    author_user_id, author_kind, revision, updated_at, deleted_at, origin,
+    author_user_id, author_kind, author_client_id, revision, updated_at, deleted_at, origin,
     sync_state, content_format
 """
 
@@ -173,6 +173,8 @@ def _row_to_reply_dict(row) -> Dict:
         "author": row["author"],
         "authorUserId": row.get("author_user_id"),
         "authorKind": row.get("author_kind") or AUTHOR_KIND_LEGACY,
+        "authorClientId": row.get("author_client_id") or None,
+        "authorClientName": comment_client_names.name_for(row.get("author_client_id")),
         "timestamp": _iso_timestamp(row["timestamp"]),
         "updatedAt": _iso_timestamp(row.get("updated_at") or row["timestamp"]),
         "revision": int(row.get("revision") or 1),
@@ -206,6 +208,8 @@ def _row_to_comment_dict(row, replies: List[Dict]) -> Dict:
         "author": row["author"],
         "authorUserId": row.get("author_user_id"),
         "authorKind": row.get("author_kind") or AUTHOR_KIND_LEGACY,
+        "authorClientId": row.get("author_client_id") or None,
+        "authorClientName": comment_client_names.name_for(row.get("author_client_id")),
         "timestamp": _iso_timestamp(row["timestamp"]),
         "updatedAt": _iso_timestamp(row.get("updated_at") or row["timestamp"]),
         "revision": int(row.get("revision") or 1),

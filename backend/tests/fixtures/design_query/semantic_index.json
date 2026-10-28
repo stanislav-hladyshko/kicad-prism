@@ -1,0 +1,976 @@
+{
+  "schema": "prism.semantic_index.a2",
+  "designKey": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "components": [
+    {
+      "componentUid": "cmp:r1",
+      "reference": "R1",
+      "value": "10k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "libraryRef": "Device:R",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Resistor",
+        "Footprint": "Resistor_SMD:R_0603_1608Metric",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "RC0603FR-0710KL",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "10k",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "RC0603FR-0710KL",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/",
+          "page": "main.kicad_sch",
+          "symbolUuid": "sym:r1",
+          "occurrenceId": "/root/r1"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:r1"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:r2",
+      "reference": "R2",
+      "value": "1k",
+      "footprint": "Resistor_SMD:R_0603_1608Metric",
+      "libraryRef": "Device:R",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Resistor",
+        "Footprint": "Resistor_SMD:R_0603_1608Metric",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "RC0603FR-071K0L",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "1k",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "RC0603FR-071K0L",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:r2",
+          "occurrenceId": "/root/r2"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:r2"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:u1",
+      "reference": "U1",
+      "value": "LM317T",
+      "footprint": "Package_TO_SOT_THT:TO-220-3_Vertical",
+      "libraryRef": "Regulator_Linear:LM317_TO220",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "1.5A adjustable regulator",
+        "Footprint": "Package_TO_SOT_THT:TO-220-3_Vertical",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "LM317T",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "LM317T",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "LM317T",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:u1",
+          "occurrenceId": "/root/u1"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:u1"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:u2",
+      "reference": "U2",
+      "value": "LM358",
+      "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+      "libraryRef": "Amplifier_Operational:LM358",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Dual operational amplifier",
+        "Footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "LM358DR",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "LM358",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "LM358DR",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:u2",
+          "occurrenceId": "/root/u2"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:u2"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:c1",
+      "reference": "C1",
+      "value": "100n",
+      "footprint": "Capacitor_SMD:C_0603_1608Metric",
+      "libraryRef": "Device:C",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Capacitor",
+        "Footprint": "Capacitor_SMD:C_0603_1608Metric",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "CC0603KRX7R9BB104",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "100n",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "CC0603KRX7R9BB104",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:c1",
+          "occurrenceId": "/root/c1"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:c1"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:c2",
+      "reference": "C2",
+      "value": "10u",
+      "footprint": "Capacitor_SMD:C_0805_2012Metric",
+      "libraryRef": "Device:C",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Capacitor",
+        "Footprint": "Capacitor_SMD:C_0805_2012Metric",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "GRM21BR61A106KE19L",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "10u",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "GRM21BR61A106KE19L",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:c2",
+          "occurrenceId": "/root/c2"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:c2"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:j3",
+      "reference": "J3",
+      "value": "Conn_01x03",
+      "footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+      "libraryRef": "Connector:Conn_01x03_Pin",
+      "fields": {
+        "DNP": "No",
+        "Datasheet": "",
+        "Description": "Connector",
+        "Footprint": "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "PZ254-1-03",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "Conn_01x03",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "PZ254-1-03",
+        "dnp": ""
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/",
+          "page": "main.kicad_sch",
+          "symbolUuid": "sym:j3",
+          "occurrenceId": "/root/j3"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:j3"
+        }
+      ],
+      "webgpuRefs": []
+    },
+    {
+      "componentUid": "cmp:d1",
+      "reference": "D1",
+      "value": "1N4007",
+      "footprint": "Diode_SMD:D_SMA",
+      "libraryRef": "Diode:1N4007",
+      "fields": {
+        "DNP": "Yes",
+        "Datasheet": "",
+        "Description": "Rectifier",
+        "Footprint": "Diode_SMD:D_SMA",
+        "In BOM": "Yes",
+        "Manufacturer": "Acme",
+        "Manufacturer Part Number": "1N4007-E3/61T",
+        "Mass (g)": "",
+        "Power Dissipation (W)": "",
+        "RQjC (C/W)": "",
+        "RQjC_top (C/W)": "",
+        "Rate": "",
+        "Temp_max (C)": "",
+        "Temp_min (C)": "",
+        "Value": "1N4007",
+        "Vendor": "Digi-Key",
+        "Vendor Part Number": "1N4007-E3/61T",
+        "dnp": "yes"
+      },
+      "schematicRefs": [
+        {
+          "sheetInstancePath": "/Power/",
+          "page": "power.kicad_sch",
+          "symbolUuid": "sym:d1",
+          "occurrenceId": "/root/d1"
+        }
+      ],
+      "pcbRefs": [
+        {
+          "footprintUuid": "fp:d1"
+        }
+      ],
+      "webgpuRefs": []
+    }
+  ],
+  "nets": [
+    {
+      "netUid": "net:+12v",
+      "name": "+12V",
+      "netClass": "Power",
+      "aliases": [
+        "VIN"
+      ],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 1
+    },
+    {
+      "netUid": "net:gnd",
+      "name": "GND",
+      "netClass": "Power",
+      "aliases": [],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 2
+    },
+    {
+      "netUid": "net:vout",
+      "name": "VOUT",
+      "netClass": "Power",
+      "aliases": [
+        "+5V"
+      ],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 3
+    },
+    {
+      "netUid": "net:power-12v",
+      "name": "Power/+12V",
+      "netClass": "Power",
+      "aliases": [],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 4
+    },
+    {
+      "netUid": "net:u1-adj",
+      "name": "U1/ADJ",
+      "netClass": "Default",
+      "aliases": [],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 5
+    },
+    {
+      "netUid": "net:nc-j3-3",
+      "name": "unconnected-(J3-Pad3)",
+      "netClass": "Default",
+      "aliases": [],
+      "sourceSheets": [
+        "/"
+      ],
+      "schematicRefs": [
+        {
+          "wireUuids": [],
+          "labelUuids": [],
+          "junctionUuids": [],
+          "pinUuids": [],
+          "labelInstanceCount": 0
+        }
+      ],
+      "pcbRefs": [
+        {
+          "trackUuids": [],
+          "arcUuids": [],
+          "viaUuids": [],
+          "zoneUuids": [],
+          "padUuids": []
+        }
+      ],
+      "webgpuRefs": [],
+      "netCode": 6
+    }
+  ],
+  "terminals": [
+    {
+      "terminalUid": "term:u1-1",
+      "componentUid": "cmp:u1",
+      "reference": "U1",
+      "pin": "1",
+      "pinName": "IN",
+      "pinType": "POWER_IN",
+      "netUid": "net:+12v",
+      "netName": "+12V",
+      "schematicNetName": "+12V",
+      "schematicPinUuid": "pin:u1-1",
+      "pcbPadUuid": "pad:u1-1"
+    },
+    {
+      "terminalUid": "term:u1-2",
+      "componentUid": "cmp:u1",
+      "reference": "U1",
+      "pin": "2",
+      "pinName": "ADJ",
+      "pinType": "INPUT",
+      "netUid": "net:u1-adj",
+      "netName": "U1/ADJ",
+      "schematicNetName": "U1/ADJ",
+      "schematicPinUuid": "pin:u1-2",
+      "pcbPadUuid": "pad:u1-2"
+    },
+    {
+      "terminalUid": "term:u1-3",
+      "componentUid": "cmp:u1",
+      "reference": "U1",
+      "pin": "3",
+      "pinName": "OUT",
+      "pinType": "POWER_OUT",
+      "netUid": "net:vout",
+      "netName": "VOUT",
+      "schematicNetName": "VOUT",
+      "schematicPinUuid": "pin:u1-3",
+      "pcbPadUuid": "pad:u1-3"
+    },
+    {
+      "terminalUid": "term:r1-1",
+      "componentUid": "cmp:r1",
+      "reference": "R1",
+      "pin": "1",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:vout",
+      "netName": "VOUT",
+      "schematicNetName": "VOUT",
+      "schematicPinUuid": "pin:r1-1",
+      "pcbPadUuid": "pad:r1-1"
+    },
+    {
+      "terminalUid": "term:r1-2",
+      "componentUid": "cmp:r1",
+      "reference": "R1",
+      "pin": "2",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:u1-adj",
+      "netName": "U1/ADJ",
+      "schematicNetName": "U1/ADJ",
+      "schematicPinUuid": "pin:r1-2",
+      "pcbPadUuid": "pad:r1-2"
+    },
+    {
+      "terminalUid": "term:r2-1",
+      "componentUid": "cmp:r2",
+      "reference": "R2",
+      "pin": "1",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:u1-adj",
+      "netName": "U1/ADJ",
+      "schematicNetName": "U1/ADJ",
+      "schematicPinUuid": "pin:r2-1",
+      "pcbPadUuid": "pad:r2-1"
+    },
+    {
+      "terminalUid": "term:r2-2",
+      "componentUid": "cmp:r2",
+      "reference": "R2",
+      "pin": "2",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:r2-2",
+      "pcbPadUuid": "pad:r2-2"
+    },
+    {
+      "terminalUid": "term:c1-1",
+      "componentUid": "cmp:c1",
+      "reference": "C1",
+      "pin": "1",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:+12v",
+      "netName": "+12V",
+      "schematicNetName": "+12V",
+      "schematicPinUuid": "pin:c1-1",
+      "pcbPadUuid": "pad:c1-1"
+    },
+    {
+      "terminalUid": "term:c1-2",
+      "componentUid": "cmp:c1",
+      "reference": "C1",
+      "pin": "2",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:c1-2",
+      "pcbPadUuid": "pad:c1-2"
+    },
+    {
+      "terminalUid": "term:c2-1",
+      "componentUid": "cmp:c2",
+      "reference": "C2",
+      "pin": "1",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:vout",
+      "netName": "VOUT",
+      "schematicNetName": "VOUT",
+      "schematicPinUuid": "pin:c2-1",
+      "pcbPadUuid": "pad:c2-1"
+    },
+    {
+      "terminalUid": "term:c2-2",
+      "componentUid": "cmp:c2",
+      "reference": "C2",
+      "pin": "2",
+      "pinName": "~",
+      "pinType": "PASSIVE",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:c2-2",
+      "pcbPadUuid": "pad:c2-2"
+    },
+    {
+      "terminalUid": "term:j3-1",
+      "componentUid": "cmp:j3",
+      "reference": "J3",
+      "pin": "1",
+      "pinName": "Pin_1",
+      "pinType": "PASSIVE",
+      "netUid": "net:power-12v",
+      "netName": "Power/+12V",
+      "schematicNetName": "Power/+12V",
+      "schematicPinUuid": "pin:j3-1",
+      "pcbPadUuid": "pad:j3-1"
+    },
+    {
+      "terminalUid": "term:j3-2",
+      "componentUid": "cmp:j3",
+      "reference": "J3",
+      "pin": "2",
+      "pinName": "Pin_2",
+      "pinType": "PASSIVE",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:j3-2",
+      "pcbPadUuid": "pad:j3-2"
+    },
+    {
+      "terminalUid": "term:j3-3",
+      "componentUid": "cmp:j3",
+      "reference": "J3",
+      "pin": "3",
+      "pinName": "Pin_3",
+      "pinType": "PASSIVE",
+      "netUid": "net:nc-j3-3",
+      "netName": "unconnected-(J3-Pad3)",
+      "schematicNetName": "unconnected-(J3-Pad3)",
+      "schematicPinUuid": "pin:j3-3",
+      "pcbPadUuid": "pad:j3-3"
+    },
+    {
+      "terminalUid": "term:d1-1",
+      "componentUid": "cmp:d1",
+      "reference": "D1",
+      "pin": "1",
+      "pinName": "K",
+      "pinType": "PASSIVE",
+      "netUid": "net:vout",
+      "netName": "VOUT",
+      "schematicNetName": "VOUT",
+      "schematicPinUuid": "pin:d1-1",
+      "pcbPadUuid": "pad:d1-1"
+    },
+    {
+      "terminalUid": "term:d1-2",
+      "componentUid": "cmp:d1",
+      "reference": "D1",
+      "pin": "2",
+      "pinName": "A",
+      "pinType": "PASSIVE",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:d1-2",
+      "pcbPadUuid": "pad:d1-2"
+    },
+    {
+      "terminalUid": "term:u2-1",
+      "componentUid": "cmp:u2",
+      "reference": "U2",
+      "pin": "1",
+      "pinName": "IN-",
+      "pinType": "INPUT",
+      "netUid": "net:+12v",
+      "netName": "+12V",
+      "schematicNetName": "+12V",
+      "schematicPinUuid": "pin:u2-1",
+      "pcbPadUuid": "pad:u2-1"
+    },
+    {
+      "terminalUid": "term:u2-2",
+      "componentUid": "cmp:u2",
+      "reference": "U2",
+      "pin": "2",
+      "pinName": "IN+",
+      "pinType": "INPUT",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:u2-2",
+      "pcbPadUuid": "pad:u2-2"
+    },
+    {
+      "terminalUid": "term:u2-3",
+      "componentUid": "cmp:u2",
+      "reference": "U2",
+      "pin": "3",
+      "pinName": "OUT",
+      "pinType": "OUTPUT",
+      "netUid": "net:vout",
+      "netName": "VOUT",
+      "schematicNetName": "VOUT",
+      "schematicPinUuid": "pin:u2-3",
+      "pcbPadUuid": "pad:u2-3"
+    },
+    {
+      "terminalUid": "term:u2-4",
+      "componentUid": "cmp:u2",
+      "reference": "U2",
+      "pin": "4",
+      "pinName": "V-",
+      "pinType": "POWER_IN",
+      "netUid": "net:gnd",
+      "netName": "GND",
+      "schematicNetName": "GND",
+      "schematicPinUuid": "pin:u2-4",
+      "pcbPadUuid": "pad:u2-4"
+    }
+  ],
+  "sheetInstances": [
+    {
+      "sheetInstanceUid": "sheet-instance:root",
+      "sheetInstancePath": "/",
+      "sheetPath": "/",
+      "page": "main.kicad_sch",
+      "parentSheetInstancePath": null,
+      "sheetSymbolUuid": null,
+      "sheetName": "main",
+      "isTopLevel": true,
+      "parentPage": null
+    },
+    {
+      "sheetInstanceUid": "sheet-instance:power",
+      "sheetInstancePath": "/11111111-1111-5111-8111-111111111111",
+      "sheetPath": "/Power/",
+      "page": "power.kicad_sch",
+      "parentSheetInstancePath": "/",
+      "sheetSymbolUuid": "22222222-2222-5222-8222-222222222222",
+      "sheetName": "Power",
+      "isTopLevel": false,
+      "parentPage": "main.kicad_sch"
+    }
+  ],
+  "buses": [],
+  "indexes": {
+    "componentByReference": {
+      "R1": 0,
+      "R2": 1,
+      "U1": 2,
+      "U2": 3,
+      "C1": 4,
+      "C2": 5,
+      "J3": 6,
+      "D1": 7
+    },
+    "componentBySchematicUuid": {
+      "sym:r1": 0,
+      "sym:r2": 1,
+      "sym:u1": 2,
+      "sym:u2": 3,
+      "sym:c1": 4,
+      "sym:c2": 5,
+      "sym:j3": 6,
+      "sym:d1": 7
+    },
+    "componentByPcbFootprintUuid": {
+      "fp:r1": 0,
+      "fp:r2": 1,
+      "fp:u1": 2,
+      "fp:u2": 3,
+      "fp:c1": 4,
+      "fp:c2": 5,
+      "fp:j3": 6,
+      "fp:d1": 7
+    },
+    "terminalBySchematicPinUuid": {
+      "pin:u1-1": 0,
+      "pin:u1-2": 1,
+      "pin:u1-3": 2,
+      "pin:r1-1": 3,
+      "pin:r1-2": 4,
+      "pin:r2-1": 5,
+      "pin:r2-2": 6,
+      "pin:c1-1": 7,
+      "pin:c1-2": 8,
+      "pin:c2-1": 9,
+      "pin:c2-2": 10,
+      "pin:j3-1": 11,
+      "pin:j3-2": 12,
+      "pin:j3-3": 13,
+      "pin:d1-1": 14,
+      "pin:d1-2": 15,
+      "pin:u2-1": 16,
+      "pin:u2-2": 17,
+      "pin:u2-3": 18,
+      "pin:u2-4": 19
+    },
+    "terminalByPcbPadUuid": {
+      "pad:u1-1": 0,
+      "pad:u1-2": 1,
+      "pad:u1-3": 2,
+      "pad:r1-1": 3,
+      "pad:r1-2": 4,
+      "pad:r2-1": 5,
+      "pad:r2-2": 6,
+      "pad:c1-1": 7,
+      "pad:c1-2": 8,
+      "pad:c2-1": 9,
+      "pad:c2-2": 10,
+      "pad:j3-1": 11,
+      "pad:j3-2": 12,
+      "pad:j3-3": 13,
+      "pad:d1-1": 14,
+      "pad:d1-2": 15,
+      "pad:u2-1": 16,
+      "pad:u2-2": 17,
+      "pad:u2-3": 18,
+      "pad:u2-4": 19
+    },
+    "terminalByReferencePin": {
+      "U1:1": 0,
+      "U1:2": 1,
+      "U1:3": 2,
+      "R1:1": 3,
+      "R1:2": 4,
+      "R2:1": 5,
+      "R2:2": 6,
+      "C1:1": 7,
+      "C1:2": 8,
+      "C2:1": 9,
+      "C2:2": 10,
+      "J3:1": 11,
+      "J3:2": 12,
+      "J3:3": 13,
+      "D1:1": 14,
+      "D1:2": 15,
+      "U2:1": 16,
+      "U2:2": 17,
+      "U2:3": 18,
+      "U2:4": 19
+    },
+    "netByName": {
+      "+12V": 0,
+      "VIN": 0,
+      "GND": 1,
+      "VOUT": 2,
+      "+5V": 2,
+      "Power/+12V": 3,
+      "U1/ADJ": 4,
+      "unconnected-(J3-Pad3)": 5
+    },
+    "netByNetCode": {
+      "1": 0,
+      "2": 1,
+      "3": 2,
+      "4": 3,
+      "5": 4,
+      "6": 5
+    },
+    "netBySchematicUuid": {},
+    "netByPcbUuid": {},
+    "sheetInstanceByPath": {
+      "/": 0,
+      "/11111111-1111-5111-8111-111111111111": 1
+    },
+    "busByUid": {}
+  },
+  "assembly": {
+    "schema": "prism.assembly_state_a0",
+    "catalog": [],
+    "footprintInventory": [
+      {
+        "uuid": "fp:r1",
+        "reference": "R1"
+      },
+      {
+        "uuid": "fp:r2",
+        "reference": "R2"
+      },
+      {
+        "uuid": "fp:u1",
+        "reference": "U1"
+      },
+      {
+        "uuid": "fp:u2",
+        "reference": "U2"
+      },
+      {
+        "uuid": "fp:c1",
+        "reference": "C1"
+      },
+      {
+        "uuid": "fp:c2",
+        "reference": "C2"
+      },
+      {
+        "uuid": "fp:j3",
+        "reference": "J3"
+      },
+      {
+        "uuid": "fp:d1",
+        "reference": "D1"
+      }
+    ],
+    "default": {
+      "occurrences": {},
+      "components": {
+        "cmp:d1": {
+          "dnp": true
+        },
+        "cmp:r2": {
+          "excludeFromPosFiles": true
+        }
+      },
+      "footprints": {}
+    },
+    "variants": [],
+    "diagnostics": []
+  }
+}

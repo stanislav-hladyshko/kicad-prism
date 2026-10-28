@@ -14,17 +14,17 @@ import hashlib
 import json
 import os
 import shutil
-import signal
 import subprocess
-import sys
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
 from app.core.config import settings
+from app.services import kicad_tools
 from app.services.design_bundle import schemas
 from app.services.design_bundle.generator import Generator
+from app.services.process_tree import KILLED_EXIT_CODE, group_popen_kwargs, kill_tree
 
 CLI_NAME = "prism-kicad"
 OUTER_TIMEOUT_MARGIN_SECONDS = 30
@@ -99,10 +99,6 @@ def executable() -> str:
     return path
 
 
-def _rss_bytes(maxrss: int) -> int:
-    return maxrss if sys.platform == "darwin" else maxrss * 1024
-
-
 def _parse_stderr(text: str) -> tuple[Any, ...]:
     lines: list[Any] = []
     for line in text.splitlines():
@@ -175,7 +171,7 @@ def _execute(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env={**os.environ, **(env or {})},
-            start_new_session=True,  # its own process group: a kill reaches git and children too
+            **group_popen_kwargs(),  # its own process group: a kill reaches git and children too
             close_fds=True,
         )
     except OSError as error:
@@ -189,28 +185,25 @@ def _execute(
         reader.start()
     deadline = started + timeout_seconds
     next_cancel = started + _CANCEL_SECONDS
-    status, rusage = None, None
+    finished = None
     try:
-        while status is None:
-            pid, raw, usage = os.wait4(process.pid, os.WNOHANG)
-            if pid:
-                status, rusage = raw, usage
+        while finished is None:
+            finished = kicad_tools.wait_process(process, _POLL_SECONDS)
+            if finished is not None:
                 break
             now = time.monotonic()
             if now >= deadline:
-                raise CliFailure(f"{CLI_NAME} {args[0]} ran past {timeout_seconds:g}s", exit_code=-signal.SIGKILL, retryable=True)
+                raise CliFailure(f"{CLI_NAME} {args[0]} ran past {timeout_seconds:g}s", exit_code=KILLED_EXIT_CODE, retryable=True)
             if cancel is not None and now >= next_cancel:
                 next_cancel = now + _CANCEL_SECONDS
                 cancel()
-            time.sleep(_POLL_SECONDS)
     except BaseException:
-        _kill_group(process)
+        kill_tree(process)
         raise
     finally:
         for reader in readers:
             reader.join(timeout=10)
-    exit_code = os.waitstatus_to_exitcode(status)
-    process.returncode = exit_code
+    exit_code, peak_rss_bytes = finished
     stdout = b"".join(chunks["out"])
     stderr = b"".join(chunks["err"]).decode("utf-8", "replace")
     result = CliRun(
@@ -219,21 +212,9 @@ def _execute(
         document=None,
         stderr_lines=_parse_stderr(stderr),
         elapsed_ms=int((time.monotonic() - started) * 1000),
-        peak_rss_bytes=_rss_bytes(rusage.ru_maxrss) if rusage is not None else 0,
+        peak_rss_bytes=peak_rss_bytes,
     )
     return result, stdout
-
-
-def _kill_group(process: subprocess.Popen[bytes]) -> None:
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except (ProcessLookupError, PermissionError):
-        pass
-    try:
-        os.waitpid(process.pid, 0)
-    except ChildProcessError:
-        pass
-    process.returncode = -signal.SIGKILL
 
 
 def _document(stdout: bytes) -> dict[str, Any] | None:

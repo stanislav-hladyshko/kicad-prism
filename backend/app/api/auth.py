@@ -10,9 +10,10 @@ generates all three, keeps them in a short-lived HttpOnly transaction cookie, an
 
 import asyncio
 import secrets
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from app.core.config import settings
 from app.core.roles import Role
 from app.core.security import (
@@ -113,6 +114,23 @@ class ActiveSession(BaseModel):
     expires_at: str
     user_agent: str = ""
     client_ip: str = ""
+
+
+class AuthSuccessResponse(BaseModel):
+    """The answer to a session mutation that has nothing else to say."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    success: bool
+
+
+class RevokeSessionsResponse(BaseModel):
+    """How many sessions a revoke ended, and the account it targeted."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    revoked: int
+    email: Optional[str] = None
 
 
 def _build_user_session(user: ResolvedSessionUser | AuthenticatedUser) -> UserSession:
@@ -325,7 +343,12 @@ async def login_with_password(
     )
 
 
-@router.post("/password/change")
+@router.post(
+    "/password/change",
+    response_model=AuthSuccessResponse,
+    response_model_exclude_unset=True,
+    summary="Change the signed-in user's local password",
+)
 async def change_own_password(
     request: ChangePasswordRequest,
     user: AuthenticatedUser = Depends(require_viewer_allowing_password_change),
@@ -359,7 +382,12 @@ async def list_my_sessions(user: AuthenticatedUser = Depends(require_viewer)):
     return [ActiveSession(**item) for item in session_store_service.list_sessions(user.email)]
 
 
-@router.post("/sessions/revoke-others")
+@router.post(
+    "/sessions/revoke-others",
+    response_model=RevokeSessionsResponse,
+    response_model_exclude_unset=True,
+    summary="Sign out everywhere except this browser",
+)
 async def revoke_other_sessions(user: AuthenticatedUser = Depends(require_viewer)):
     """Sign out everywhere except the browser making this request."""
     revoked = _revoke_account_sessions(
@@ -368,14 +396,24 @@ async def revoke_other_sessions(user: AuthenticatedUser = Depends(require_viewer
     return {"revoked": revoked}
 
 
-@router.post("/sessions/revoke-user/{email}")
+@router.post(
+    "/sessions/revoke-user/{email}",
+    response_model=RevokeSessionsResponse,
+    response_model_exclude_unset=True,
+    summary="Terminate every session belonging to an account",
+)
 async def revoke_user_sessions(email: str, user: AuthenticatedUser = Depends(require_admin)):
     """Terminate every session belonging to an account. Used when access is withdrawn."""
     revoked = _revoke_account_sessions(email, reason=f"admin:{user.email}")
     return {"email": email.strip().lower(), "revoked": revoked}
 
 
-@router.post("/logout")
+@router.post(
+    "/logout",
+    response_model=AuthSuccessResponse,
+    response_model_exclude_unset=True,
+    summary="Revoke this browser's session",
+)
 async def logout(http_request: Request, response: Response):
     payload = decode_session_token(http_request.cookies.get(SESSION_COOKIE_NAME) or "")
     if payload:

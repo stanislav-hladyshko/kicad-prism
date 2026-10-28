@@ -39,13 +39,15 @@ signal a refused input with a bare ``ValueError`` written for the caller.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import contextmanager
 from typing import Any, Iterator, Mapping
 
 from http import HTTPStatus
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -205,10 +207,38 @@ async def _http_exception_handler(_request: Request, error: Exception) -> JSONRe
     )
 
 
+#: Tests set this so a route whose response breaks its declared model fails loudly.
+STRICT_RESPONSE_MODELS_ENV = "PRISM_STRICT_RESPONSE_MODELS"
+
+
+async def _response_validation_handler(request: Request, error: Exception) -> JSONResponse:
+    """A route's response did not fit its declared ``response_model``.
+
+    Typing a route (ADR scripting-and-mcp §3.2) describes what it already
+    returned, so a mismatch is a bug in the model, not in the response. Serve
+    the response as the route produced it and log the mismatch, rather than
+    turning a working route into a 500. Tests set ``PRISM_STRICT_RESPONSE_MODELS``
+    and the mismatch fails them instead.
+    """
+
+    assert isinstance(error, ResponseValidationError)
+    if os.environ.get(STRICT_RESPONSE_MODELS_ENV) == "1":
+        raise error
+    route = request.scope.get("route")
+    logger.error(
+        "Response of %s %s does not match its response model; served unvalidated: %s",
+        request.method,
+        getattr(route, "path", request.url.path),
+        error.errors()[:5],
+    )
+    return JSONResponse(jsonable_encoder(error.body), status_code=getattr(route, "status_code", None) or 200)
+
+
 def install_error_handlers(app: FastAPI) -> None:
     """Register the error handlers. ``app.main`` calls this once."""
 
     app.add_exception_handler(DomainError, _domain_error_handler)
+    app.add_exception_handler(ResponseValidationError, _response_validation_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
 

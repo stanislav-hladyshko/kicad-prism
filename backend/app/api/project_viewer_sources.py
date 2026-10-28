@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 
 from app.api._blocking import run_bounded_io
 from app.api._helpers import (
@@ -25,6 +26,36 @@ from app.services.design_bundle.consumer import bundle_read
 from app.services.path_config_service import PathConfig
 
 router = APIRouter(dependencies=[Depends(require_viewer)])
+
+
+class SubsheetFile(BaseModel):
+    """One schematic below the root, with its text when the client asked for it."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    name: str
+    url: str
+    content: Optional[str] = None
+
+
+class Subsheets(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    files: list[SubsheetFile]
+
+
+class ViewerSupportFile(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    filename: str
+    content: str
+
+
+class ViewerSupportFiles(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    files: list[ViewerSupportFile]
+
 
 
 def _project_metadata_bundle(
@@ -128,7 +159,11 @@ def _find_commit_3d_model(
     )
 
 
-@router.get("/{project_id}/schematic")
+@router.get(
+    "/{project_id}/schematic",
+    responses={200: {"description": "The root schematic file.", "content": {"application/octet-stream": {}}}},
+    summary="The revision's root schematic",
+)
 async def get_project_schematic(
     project_id: str,
     request: Request,
@@ -150,7 +185,11 @@ def _schematic_response(
     return _bundle_commit_response(read, source, request, commit, inline=True)
 
 
-@router.get("/{project_id}/schematic/subsheets")
+@router.get(
+    "/{project_id}/schematic/subsheets",
+    response_model=Subsheets,
+    summary="The schematics below the root, optionally with their text",
+)
 async def get_project_subsheets(
     project_id: str,
     request: Request,
@@ -182,7 +221,11 @@ def _subsheets_response(
     return gzip_json_response(request, {"files": files}, headers)
 
 
-@router.get("/{project_id}/viewer/support-files")
+@router.get(
+    "/{project_id}/viewer/support-files",
+    response_model=ViewerSupportFiles,
+    summary="The project file and drawing sheet the viewer needs",
+)
 async def get_project_viewer_support_files(
     project_id: str,
     response: Response,
@@ -213,7 +256,11 @@ def _support_files_response(
     return {"files": files}
 
 
-@router.get("/{project_id}/pcb")
+@router.get(
+    "/{project_id}/pcb",
+    responses={200: {"description": "The board file.", "content": {"application/octet-stream": {}}}},
+    summary="The revision's board file",
+)
 async def get_project_pcb(
     project_id: str,
     request: Request,
@@ -240,7 +287,16 @@ def _pcb_response(project_id: str, commit: Optional[str], user: AuthenticatedUse
 # board's own footprint models, different files with different bytes, so serving
 # one here would change the response. The legacy lookup stays until a bundle
 # member for the design-output model exists; it is not approximated.
-@router.get("/{project_id}/3d-model")
+@router.get(
+    "/{project_id}/3d-model",
+    responses={
+        200: {
+            "description": "A committed design-output 3D model.",
+            "content": {"model/gltf-binary": {}, "application/octet-stream": {}},
+        }
+    },
+    summary="The project's committed 3D model",
+)
 async def get_project_3d_model(
     project_id: str,
     commit: Optional[str] = None,

@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import logging
+import threading
+import time
 import uuid
 from datetime import datetime
 from typing import Any, Callable, Mapping, Sequence
 
+from app.core import request_context
 from app.services import (
+    event_log,
     job_artifact_records,
     job_benchmark,
     job_claims,
     job_lease_recovery,
+    job_requeue,
 )
 from app.services.job_claims import LOCK_MODES  # noqa: F401  (kept importable from here)
 from app.services.job_rows import (
@@ -26,6 +32,31 @@ ACTIVE_STATUSES = frozenset({"queued", "running", "retry_wait", "cancel_requeste
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 CLAIMABLE_STATUSES = frozenset({"queued", "retry_wait", "running"})
 
+logger = logging.getLogger(__name__)
+
+#: ``job.progress`` events are a heartbeat, not a log line: one per job per 2 s.
+_PROGRESS_EVENT_INTERVAL_SECONDS = 2.0
+_progress_event_times: dict[str, float] = {}
+_progress_event_lock = threading.Lock()
+_monotonic = time.monotonic
+
+
+def _progress_event_due(job_id: str) -> bool:
+    """Whether this attempt may append ``job.progress`` now, and start its clock."""
+
+    now = _monotonic()
+    with _progress_event_lock:
+        previous = _progress_event_times.get(job_id)
+        if previous is not None and now - previous < _PROGRESS_EVENT_INTERVAL_SECONDS:
+            return False
+        _progress_event_times[job_id] = now
+        return True
+
+
+def _forget_progress_event(job_id: str) -> None:
+    with _progress_event_lock:
+        _progress_event_times.pop(job_id, None)
+
 
 class JobService:
     """Fenced PostgreSQL job queue shared by all Prism worker pools.
@@ -40,6 +71,40 @@ class JobService:
 
     def _set_workspace_search_path(self, conn) -> None:
         conn.execute("SET search_path TO workspace, public")
+
+    @staticmethod
+    def _record_finished(
+        *, job_id: str, job_kind: str, project_id: str | None, state: str
+    ) -> None:
+        """Tell the event log a job reached a terminal state (after its commit)."""
+
+        _forget_progress_event(job_id)
+        event_log.record_quietly(
+            "job.finished",
+            project_id=project_id or None,
+            topic=f"job:{job_id}",
+            payload={"jobId": job_id, "jobKind": job_kind, "state": state},
+        )
+
+    @staticmethod
+    def _record_progress(
+        *,
+        job_id: str,
+        job_kind: str,
+        project_id: str | None,
+        percent: float | None,
+        previous_percent: Any = None,
+    ) -> None:
+        """Append ``job.progress`` when it moved, at most once per 2 s per job."""
+
+        if percent is None or percent == previous_percent or not _progress_event_due(job_id):
+            return
+        event_log.record_quietly(
+            "job.progress",
+            project_id=project_id or None,
+            topic=f"job:{job_id}",
+            payload={"jobId": job_id, "jobKind": job_kind, "progress": float(percent)},
+        )
 
     @staticmethod
     def _connect():
@@ -130,11 +195,12 @@ class JobService:
                     id, kind, worker_pool, status, message, percent, payload,
                     priority, artifact_key, project_id, repository_id,
                     requested_by, max_attempts, resource_requirements,
-                    lock_requirements, created_at, updated_at, available_at
+                    lock_requirements, created_at, updated_at, available_at,
+                    request_id
                 ) VALUES (
                     %s, %s, %s, 'queued', 'Queued', 0, %s::jsonb,
                     %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb,
-                    NOW(), NOW(), NOW()
+                    NOW(), NOW(), NOW(), %s
                 )
                 RETURNING *
                 """,
@@ -151,6 +217,7 @@ class JobService:
                     int(max_attempts),
                     _json(resource_requirements),
                     _json(lock_requirements),
+                    request_context.request_id(),
                 ),
             ).fetchone()
             self._event(conn, job_id, "queued")
@@ -175,9 +242,15 @@ class JobService:
             raise ValueError("lease_seconds must be at least 10")
         with self._connect() as conn:
             conn.execute("SET search_path TO workspace, public")
-            job_lease_recovery.recover_dead_attempts(conn, worker_pool, job_claims.release_claims, self._event)
+            ended = job_lease_recovery.recover_dead_attempts(
+                conn, worker_pool, job_claims.release_claims, self._event
+            )
             job_claims.release_non_authoritative_claims(conn)
             conn.commit()
+            for ended_id, ended_kind, ended_project, ended_state in ended:
+                self._record_finished(
+                    job_id=ended_id, job_kind=ended_kind, project_id=ended_project, state=ended_state
+                )
             candidate_ids = conn.execute(
                 """
                 SELECT id
@@ -396,13 +469,14 @@ class JobService:
         params.extend((job_id, fence, worker_id))
         with self._connect() as conn:
             conn.execute("SET search_path TO workspace, public")
-            if not self._authoritative_claim(
+            claim = self._authoritative_claim(
                 conn,
                 job_id,
                 worker_id,
                 fence,
                 statuses=("running", "cancel_requested"),
-            ):
+            )
+            if not claim:
                 conn.commit()
                 return False
             cursor = conn.execute(
@@ -424,7 +498,15 @@ class JobService:
                     details={"message": message} if message is not None else {},
                 )
             conn.commit()
-            return cursor.rowcount == 1
+        if cursor.rowcount == 1:
+            self._record_progress(
+                job_id=job_id,
+                job_kind=str(claim["kind"]),
+                project_id=claim["project_id"],
+                percent=normalized_percent,
+                previous_percent=claim.get("percent"),
+            )
+        return cursor.rowcount == 1
 
     def set_log_path(
         self,
@@ -666,7 +748,8 @@ class JobService:
 
         with self._connect() as conn:
             conn.execute("SET search_path TO workspace, public")
-            if not self._authoritative_claim(conn, job_id, worker_id, fence):
+            claim = self._authoritative_claim(conn, job_id, worker_id, fence)
+            if not claim:
                 conn.commit()
                 return False
             cursor = conn.execute(
@@ -699,7 +782,14 @@ class JobService:
                     event = {"digest": artifacts[0]["digest"], **event}
                 self._event(conn, job_id, "completed", details=event)
             conn.commit()
-            return cursor.rowcount == 1
+        if cursor.rowcount == 1:
+            self._record_finished(
+                job_id=job_id,
+                job_kind=str(claim["kind"]),
+                project_id=claim["project_id"],
+                state="completed",
+            )
+        return cursor.rowcount == 1
 
     def get_artifact_for_job_digest(
         self,
@@ -786,14 +876,22 @@ class JobService:
                 details={"error_code": error_code, "error_message": error_message},
             )
             conn.commit()
-            return status
+        if status in {"failed", "cancelled"}:
+            self._record_finished(
+                job_id=job_id,
+                job_kind=str(row["kind"]),
+                project_id=row["project_id"],
+                state=status,
+            )
+        return status
 
     def request_cancel(self, job_id: str, *, requested_by: str = "") -> str | None:
         self.initialize()
+        finished = False
         with self._connect() as conn:
             conn.execute("SET search_path TO workspace, public")
             row = conn.execute(
-                "SELECT status, fence FROM ws_jobs WHERE id = %s FOR UPDATE",
+                "SELECT status, fence, kind, project_id FROM ws_jobs WHERE id = %s FOR UPDATE",
                 (job_id,),
             ).fetchone()
             if not row:
@@ -818,6 +916,7 @@ class JobService:
                 )
                 job_claims.release_claims(conn, job_id, int(row["fence"] or 0))
                 event_type = "cancelled"
+                finished = True
             else:
                 status = "cancel_requested"
                 conn.execute(
@@ -838,7 +937,26 @@ class JobService:
                 details={"requested_by": requested_by},
             )
             conn.commit()
-            return status
+        if finished:
+            self._record_finished(
+                job_id=job_id,
+                job_kind=str(row["kind"]),
+                project_id=row["project_id"],
+                state="cancelled",
+            )
+        return status
+
+    def requeue(self, job_id: str, *, requested_by: str = "") -> dict[str, Any]:
+        """Reset a failed or lease-expired job to ``queued`` (ADR §11, D21).
+
+        Raises ``job_requeue.JobNotFound`` for an unknown job and
+        ``job_requeue.JobNotRequeueable`` when the job's state or live lease
+        forbids it. The transaction itself lives in ``job_requeue`` so this
+        module stays inside its line budget.
+        """
+
+        self.initialize()
+        return job_requeue.requeue(self, job_id, requested_by=requested_by)
 
     def finalize_cancel(
         self,
@@ -850,13 +968,14 @@ class JobService:
     ) -> bool:
         with self._connect() as conn:
             conn.execute("SET search_path TO workspace, public")
-            if not self._authoritative_claim(
+            claim = self._authoritative_claim(
                 conn,
                 job_id,
                 worker_id,
                 fence,
                 statuses=("running", "cancel_requested"),
-            ):
+            )
+            if not claim:
                 conn.commit()
                 return False
             cursor = conn.execute(
@@ -875,7 +994,14 @@ class JobService:
                 job_claims.release_claims(conn, job_id, fence)
                 self._event(conn, job_id, "cancelled")
             conn.commit()
-            return cursor.rowcount == 1
+        if cursor.rowcount == 1:
+            self._record_finished(
+                job_id=job_id,
+                job_kind=str(claim["kind"]),
+                project_id=claim["project_id"],
+                state="cancelled",
+            )
+        return cursor.rowcount == 1
 
     def get(self, job_id: str) -> dict[str, Any] | None:
         self.initialize()

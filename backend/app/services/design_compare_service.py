@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
-from app.services import fabrication_compare_service, project_revision
+from app.services import event_log, fabrication_compare_service, project_revision
 from app.services import design_compare_bundle_path
 from app.services.design_bundle import cli as design_bundle_cli
 from app.services.design_compare_artifacts import _manifest_entry
@@ -375,23 +375,40 @@ def run_design_compare_job_v3(context: JobContext) -> JobResult:
 
 
 def settle_comparison_end(job: Dict[str, Any]) -> bool:
-    """End hook: an ended comparison still showing late domains as building
-    (its process died after the partial result) republishes them as failed,
-    as version 2, the way a failure inside the handler does (D19).
+    """End hook: record a finished comparison; republish late domains as failed.
+
+    A completed job appends ``comparison.done`` with the commits its result
+    carries, after the job row committed. An ended comparison still showing late
+    domains as building (its process died after the partial result) republishes
+    them as failed, as version 2, the way a failure inside the handler does
+    (D19).
 
     Unfenced, because the attempt is over; applies only while the job's result
     is the partial one it read. Returns whether it published. Idempotent. The
     runner traps no SIGTERM (D20): a cancel that kills it is settled here.
     """
 
+    payload = dict(job.get("payload") or {})
     metadata = dict(job.get("result_metadata") or {})
+    job_id = str(job.get("job_id") or job.get("id") or "")
+    if job.get("status") == "completed":
+        event_log.record_quietly(
+            "comparison.done",
+            project_id=job.get("project_id") or payload.get("project_id"),
+            topic=f"job:{job_id}",
+            payload={
+                "jobId": job_id,
+                "base": str(metadata.get("base") or payload.get("base") or ""),
+                "compare": str(metadata.get("head") or payload.get("head") or ""),
+            },
+        )
+        return False
     if job.get("status") not in {"failed", "cancelled"} or metadata.get("result_version") != 1:
         return False
     path = Path(str(job.get("result_path") or ""))
     if not job.get("result_digest") or not path.is_file():
         return False
     failed = _late_domains_failed(json.loads(path.read_text(encoding="utf-8")))
-    payload = dict(job.get("payload") or {})
     artifact = job_artifacts.prepare_ended_json(
         failed,
         kind="design_compare",

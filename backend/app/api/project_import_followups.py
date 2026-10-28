@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, ConfigDict
 
 from app.api._helpers import get_project_for_role_or_404
 from app.core.security import AuthenticatedUser, require_designer, require_viewer
@@ -13,9 +15,35 @@ from app.services import project_import_followups
 router = APIRouter(dependencies=[Depends(require_viewer)])
 
 
+class ImportFollowUp(BaseModel):
+    """One derived job and whether an import could queue it."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    project_id: str
+    operation: str
+    status: str
+    # Present on a failure ("failed") and on a project the scheduler could not see.
+    error: Optional[str] = None
+    job_id: Optional[str] = None
+
+
+class ImportFollowUpsRetried(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    status: str
+    project_id: str
+    follow_ups: List[ImportFollowUp]
+    job_ids: List[str]
+    message: str
+
+
 @router.post(
     "/{project_id}/import-follow-ups/retry",
     dependencies=[Depends(require_designer)],
+    response_model=ImportFollowUpsRetried,
+    response_model_exclude_unset=True,
+    summary="Retry the metadata and thumbnail jobs an import could not queue",
 )
 async def retry_project_import_follow_ups(
     project_id: str,

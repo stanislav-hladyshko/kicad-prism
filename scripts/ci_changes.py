@@ -31,7 +31,7 @@ EVERYTHING = (".github/*", ".python-version", ".node-version", "scripts/ci_chang
 
 OWN: dict[str, tuple[str, ...]] = {
     "backend": ("backend/*", "requirements/*", "requirements.txt", "fixtures/*",
-                "scripts/*", "assets/*", "deploy/release/*"),
+                "scripts/*", "assets/*", "deploy/release/*", "sdk/*", "examples/*"),
     "frontend": ("frontend/*", "backend/tests/fixtures/*", "scripts/check-embedded-wasm.mjs",
                  "scripts/build-ecad-viewer.sh"),
     "viewer": ("kicad-prism-viewer/*", "frontend/public/prism-semantic-viewer.js", "frontend/index.html",

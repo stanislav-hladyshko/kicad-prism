@@ -82,7 +82,7 @@ class GitPublishTransportTests(unittest.TestCase):
         with patch(
             "app.release_studio.git_publish.subprocess.Popen",
             return_value=process,
-        ), patch("app.release_studio.git_publish.os.killpg") as killpg:
+        ), patch("app.services.process_tree.os.killpg") as killpg:
             with self.assertRaisesRegex(RuntimeError, "pipe failed"):
                 run_git("status", cwd=Path("."), timeout_seconds=1)
 
@@ -96,7 +96,7 @@ class GitPublishTransportTests(unittest.TestCase):
             "app.release_studio.git_publish.subprocess.Popen",
             return_value=process,
         ), patch(
-            "app.release_studio.git_publish.os.killpg",
+            "app.services.process_tree.os.killpg",
             side_effect=OSError("group kill failed"),
         ):
             with self.assertRaisesRegex(GitPublishError, "timed out"):

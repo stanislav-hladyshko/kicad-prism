@@ -123,6 +123,8 @@ design. All rights stay with the authors under the projects' own terms.
 | WREN (vme-wren, vme-wren-fp-single, EDA-04903, EDA-04949) | CERN, BE-CEM | [be-cem-edl/chronos/wren/wren-hw](https://gitlab.cern.ch/be-cem-edl/chronos/wren/wren-hw) | CERN-OHL-W v2 or later and CC BY-SA 4.0, as stated on the schematic sheets |
 | OpenSwitch 10x10G carrier and LAN969x | Quentin Freimanis | [qfreiman/openswitch-10x10g-carrier](https://gitlab.com/qfreiman/openswitch-10x10g-carrier), [qfreiman/openswitch-lan969x](https://gitlab.com/qfreiman/openswitch-lan969x) | No license is stated in the repositories; see them for the author's terms |
 | USB-PD-Trigger-Board | Krishna Swaroop (Prism maintainer) | [krishna-swaroop/USB-PD-Trigger-Board](https://github.com/krishna-swaroop/USB-PD-Trigger-Board) | MIT |
+| ThunderScope | EEVengers | [EEVengers/ThunderScope](https://github.com/EEVengers/ThunderScope) | MIT |
+| Jetson AGX Thor baseboard | Antmicro | [antmicro/jetson-agx-thor-baseboard](https://github.com/antmicro/jetson-agx-thor-baseboard) | Apache-2.0 |
 
 The component catalog in the Library Manager screenshot is CERN's public
 KiCad database library. If you are an author of one of these designs and would
@@ -143,7 +145,7 @@ The API and both workers reuse one Prism backend image. Imported repositories
 and generated assets live under `data/projects`; Git SSH state lives under
 `data/ssh`. PostgreSQL and both directories are required for complete recovery.
 
-See [Architecture](docs/ARCHITECTURE.md).
+See [Architecture](https://krishna-swaroop.github.io/KiCAD-Prism/contribute/architecture/).
 
 ## Deploy the latest stable release
 
@@ -168,7 +170,7 @@ docker compose up -d --wait
 The supported public deployment target is Linux AMD64. Native ARM64 release
 images are not currently published.
 
-Follow [Deployment](docs/DEPLOYMENT.md) for OIDC, TLS, storage, sizing, and
+Follow [Deployment](https://krishna-swaroop.github.io/KiCAD-Prism/admin/deployment/) for OIDC, TLS, storage, sizing, and
 production checks. If a historical release predates deployment bundles, build
 that stable tag from source as documented there.
 
@@ -210,8 +212,8 @@ Useful first-run modes include:
 
 Generated configuration contains deployment secrets and is excluded from Git;
 back it up with the rest of the Prism deployment state. The installer is a
-guided configuration layer, not a replacement for the [Deployment](docs/DEPLOYMENT.md)
-and [Operations](docs/OPERATIONS.md) guides. For a stable release archive,
+guided configuration layer, not a replacement for the [Deployment](https://krishna-swaroop.github.io/KiCAD-Prism/admin/deployment/)
+and [Operations](https://krishna-swaroop.github.io/KiCAD-Prism/admin/operations/) guides. For a stable release archive,
 follow the pull-only bundle instructions above and use the installer only when
 working from a source checkout that includes `deploy.sh` or `deploy.ps1`.
 
@@ -229,7 +231,7 @@ docker compose up --build -d
 For a private local evaluation, explicitly set `AUTH_ENABLED=false`. Never use
 guest administrator mode on a shared or reachable host.
 
-See [Getting started](docs/GETTING_STARTED.md) and
+See [Getting started](https://krishna-swaroop.github.io/KiCAD-Prism/get-started/try-it/) and
 [Contributing](CONTRIBUTING.md).
 
 ## Branch and release model
@@ -242,26 +244,26 @@ See [Getting started](docs/GETTING_STARTED.md) and
   and publishes the AMD64 images and deployment bundle.
 - Pull requests and ordinary branch pushes never publish container images.
 
-See [Release process](docs/RELEASES.md).
+See [Release process](https://krishna-swaroop.github.io/KiCAD-Prism/contribute/release-process/).
 
 ## Documentation
 
 - [Documentation index](docs/README.md)
-- [Platform overview](docs/OVERVIEW.md)
-- [Getting started](docs/GETTING_STARTED.md)
-- [Deployment](docs/DEPLOYMENT.md)
+- [Platform overview](https://krishna-swaroop.github.io/KiCAD-Prism/get-started/what-is-prism/)
+- [Getting started](https://krishna-swaroop.github.io/KiCAD-Prism/get-started/try-it/)
+- [Deployment](https://krishna-swaroop.github.io/KiCAD-Prism/admin/deployment/)
 - [Configuration](docs/CONFIGURATION.md)
-- [Authentication and access](docs/AUTHENTICATION_AND_ACCESS.md)
-- [Project workflows](docs/PROJECT_WORKFLOWS.md)
-- [Library Manager](docs/LIBRARY_MANAGER.md)
+- [Authentication and access](https://krishna-swaroop.github.io/KiCAD-Prism/admin/authentication/)
+- [Project workflows](https://krishna-swaroop.github.io/KiCAD-Prism/use/projects/)
+- [Library Manager](https://krishna-swaroop.github.io/KiCAD-Prism/use/library-manager/)
 - [Remote Symbol Provider](docs/REMOTE_SYMBOL_PROVIDER.md)
 - [Release Studio](docs/release-studio/README.md)
-- [Issue trackers](docs/TRACKER_INTEGRATION.md)
-- [Simulation Studio](docs/SIMULATION_STUDIO.md)
-- [Team adoption](docs/TEAM_ADOPTION.md)
-- [Operations](docs/OPERATIONS.md)
-- [Upgrades and backups](docs/UPGRADES.md)
-- [Release process](docs/RELEASES.md)
+- [Issue trackers](https://krishna-swaroop.github.io/KiCAD-Prism/admin/issue-trackers/)
+- [Simulation Studio](https://krishna-swaroop.github.io/KiCAD-Prism/use/simulation-studio/)
+- [Team adoption](https://krishna-swaroop.github.io/KiCAD-Prism/get-started/team-adoption/)
+- [Operations](https://krishna-swaroop.github.io/KiCAD-Prism/admin/operations/)
+- [Upgrades and backups](https://krishna-swaroop.github.io/KiCAD-Prism/admin/upgrades/)
+- [Release process](https://krishna-swaroop.github.io/KiCAD-Prism/contribute/release-process/)
 
 ## Project status
 
@@ -279,12 +281,12 @@ Current boundaries include:
 - fixed workflow types rather than first-class arbitrary workflows;
 - no real-time multi-user ECAD editing.
 
-See [Platform overview](docs/OVERVIEW.md) before planning a team rollout.
+See [Platform overview](https://krishna-swaroop.github.io/KiCAD-Prism/get-started/what-is-prism/) before planning a team rollout.
 
 ## Contributing and issues
 
 - [Contributing guidelines](CONTRIBUTING.md)
-- [Reporting issues](docs/REPORTING_ISSUES.md)
+- [Reporting issues](https://krishna-swaroop.github.io/KiCAD-Prism/contribute/reporting-issues/)
 - [Security policy](SECURITY.md)
 
 Changes target protected `dev` through pull requests. The required quality gate

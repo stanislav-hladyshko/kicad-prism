@@ -149,6 +149,10 @@ def main() -> None:
     parser.add_argument("--fence", required=True, type=int)
     parser.add_argument("--worker-id", required=True)
     args = parser.parse_args()
+    # A job process is short-lived: its counters (cache hits) flush at exit.
+    from app.services.ops import stats as ops_stats
+
+    ops_stats.start("job")
     raise SystemExit(execute(args.job_id, args.fence, args.worker_id))
 
 

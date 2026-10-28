@@ -531,5 +531,20 @@ class NearestExportTests(unittest.TestCase):
         self.assertEqual(nearest_export(["x-PTH.drl", "x-NPTH.drl"]), ["x-PTH.drl", "x-NPTH.drl"])
 
 
+class FabricationResponseModelTests(unittest.TestCase):
+    """The typed route answers exactly the dict ``FabricationPackage.view`` built."""
+
+    def test_the_model_serializes_the_view_unchanged(self) -> None:
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import fabrication_view_models as models
+
+        view = FabricationPackage.from_files(package_files()).view()
+        typed = models.FabricationView.model_validate(view).model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
+        self.assertEqual(typed, jsonable_encoder(view))
+
+
 if __name__ == "__main__":
     unittest.main()

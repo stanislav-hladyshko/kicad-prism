@@ -21,6 +21,34 @@ from app.api._helpers import (
     resolve_path_within_root,
     revision_cache_headers,
 )
+from app.api.projects_models import (
+    CommitDistance,
+    DetectedPaths,
+    DocFileContent,
+    ImportAccessHelp,
+    JobStarted,
+    MonorepoStructure,
+    ProjectBranches,
+    ProjectCommentsSourceUrls,
+    ProjectCommitSummary,
+    ProjectCommits,
+    ProjectConfigSaved,
+    ProjectDeleted,
+    ProjectDescription,
+    ProjectDescriptionUpdated,
+    ProjectName,
+    ProjectNameUpdated,
+    ProjectPathConfig,
+    ProjectReadme,
+    ProjectReleases,
+    ProjectSearchResults,
+    SyncQueued,
+    ThumbnailCleared,
+    ThumbnailQueued,
+    ThumbnailUploaded,
+    ThumbnailsQueued,
+    WorkflowQueued,
+)
 from app.core.errors import caller_errors, value_errors_as
 from app.core.config import settings
 from app.core import policy
@@ -29,6 +57,7 @@ from app.services import (
     derived_assets,
     file_service,
     git_access_service,
+    git_remote_access,
     path_config_service,
     project_deletion,
     project_import_service,
@@ -198,7 +227,7 @@ async def list_monorepos(user: AuthenticatedUser = Depends(require_viewer)):
         ))
     return result
 
-@router.get("/monorepos/{repo_name}/structure")
+@router.get("/monorepos/{repo_name}/structure", response_model=MonorepoStructure, summary="Folders and projects under one monorepo path")
 async def get_monorepo_structure(
     repo_name: str,
     subpath: str = "",
@@ -267,7 +296,7 @@ async def get_monorepo_structure(
         "projects": projects
     }
 
-@router.get("/search")
+@router.get("/search", response_model=ProjectSearchResults, summary="Search projects by name, description or repository")
 async def search_projects(
     q: str = "",
     limit: int = Query(default=100, ge=1, le=500),
@@ -275,12 +304,10 @@ async def search_projects(
 ):
     """
     Search across all projects (standalone and monorepo sub-projects).
-    Uses SQL LIKE — no full hydration needed.
+    Uses SQL LIKE — no full hydration needed. An empty query lists every project
+    the caller may see, by name, up to ``limit``.
     """
     query = q.strip()
-    if not query:
-        return {"results": []}
-
     rows = await asyncio.to_thread(workspace.search_projects, query, limit, user.role)
     results = []
     for r in rows:
@@ -311,7 +338,7 @@ class ImportRequest(BaseModel):
 class RegenerateThumbnailsRequest(BaseModel):
     project_ids: List[str] = Field(min_length=1)
 
-@router.post("/analyze")
+@router.post("/analyze", response_model=JobStarted, summary="Start analyzing a repository for import")
 async def analyze_repository(
     request: AnalyzeRequest,
     user: AuthenticatedUser = Depends(require_designer),
@@ -332,7 +359,12 @@ async def analyze_repository(
         return {"job_id": job_id, "status": "started"}
 
 
-@router.post("/access-help", dependencies=[Depends(require_designer)])
+@router.post(
+    "/access-help",
+    dependencies=[Depends(require_designer)],
+    response_model=ImportAccessHelp,
+    summary="Where to register the key for a repository Prism cannot read",
+)
 async def import_access_help(request: AnalyzeRequest):
     """What to do about a repository Prism cannot read.
 
@@ -340,7 +372,7 @@ async def import_access_help(request: AnalyzeRequest):
     key to register and a link to the right page on the detected forge, instead
     of leaving the user with a message and nowhere to go.
     """
-    parsed = parse_remote_url(request.url, project_import_service.remote_url_policy())
+    parsed = parse_remote_url(request.url, git_remote_access.remote_url_policy())
 
     key = await asyncio.to_thread(git_access_service.describe_key)
     guidance = git_access_service.guidance_for(parsed)
@@ -357,7 +389,7 @@ async def import_access_help(request: AnalyzeRequest):
     }
 
 
-@router.post("/import")
+@router.post("/import", response_model=JobStarted, summary="Start importing a repository")
 async def import_project(
     request: ImportRequest,
     user: AuthenticatedUser = Depends(require_designer),
@@ -378,7 +410,12 @@ async def import_project(
         )
         return {"job_id": job_id, "status": "started"}
 
-@router.post("/{project_id}/sync", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/sync",
+    dependencies=[Depends(require_designer)],
+    response_model=SyncQueued,
+    summary="Queue a sync with the project's remote",
+)
 async def sync_project_endpoint(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Sync project repository with remote.
@@ -402,7 +439,12 @@ class WorkflowRequest(BaseModel):
     author: Optional[str] = "anonymous"
     force: bool = False
 
-@router.post("/{project_id}/workflows", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/workflows",
+    dependencies=[Depends(require_designer)],
+    response_model=WorkflowQueued,
+    summary="Queue a KiCad workflow output job",
+)
 async def trigger_workflow(
     project_id: str,
     request: WorkflowRequest,
@@ -427,7 +469,7 @@ async def trigger_workflow(
         return {"job_id": job_id}
 
 
-@router.get("/{project_id}/branches")
+@router.get("/{project_id}/branches", response_model=ProjectBranches, summary="Branches that can be viewed for the project")
 async def get_project_branches(
     project_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -461,7 +503,11 @@ def _resolve_thumbnail_file(project, row: Optional[dict]) -> Optional[Path]:
     return abs_path if abs_path.is_file() else None
 
 
-@router.get("/{project_id}/thumbnail")
+@router.get(
+    "/{project_id}/thumbnail",
+    responses={200: {"description": "The project's thumbnail image.", "content": {"image/*": {}}}},
+    summary="The project's thumbnail image",
+)
 async def get_project_thumbnail(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     # Use cached thumbnail path from DB, fallback to filesystem detection
     row = authorized_project(user, project_id)
@@ -481,7 +527,11 @@ async def get_project_thumbnail(project_id: str, user: AuthenticatedUser = Depen
     return _thumbnail_response(Path(path), immutable=False)
 
 
-@router.get("/{project_id}/thumbnail/{thumbnail_digest}")
+@router.get(
+    "/{project_id}/thumbnail/{thumbnail_digest}",
+    responses={200: {"description": "The immutable thumbnail image for that digest.", "content": {"image/*": {}}}},
+    summary="One immutable version of the project's thumbnail",
+)
 async def get_project_thumbnail_version(
     project_id: str,
     thumbnail_digest: str,
@@ -535,7 +585,12 @@ def _thumbnail_response(
         headers=headers,
     )
 
-@router.post("/{project_id}/thumbnail/regenerate", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/thumbnail/regenerate",
+    dependencies=[Depends(require_designer)],
+    response_model=ThumbnailQueued,
+    summary="Queue a fresh board thumbnail render",
+)
 async def regenerate_project_thumbnail(project_id: str, user: AuthenticatedUser = Depends(require_designer)):
     """Queue a fresh board render for this project.
 
@@ -559,7 +614,11 @@ async def regenerate_project_thumbnail(project_id: str, user: AuthenticatedUser 
     }
 
 
-@router.post("/thumbnails/regenerate")
+@router.post(
+    "/thumbnails/regenerate",
+    response_model=ThumbnailsQueued,
+    summary="Queue board thumbnail renders for several projects",
+)
 async def regenerate_project_thumbnails(
     request: RegenerateThumbnailsRequest,
     user: AuthenticatedUser = Depends(require_designer),
@@ -590,7 +649,12 @@ async def regenerate_project_thumbnails(
     }
 
 
-@router.put("/{project_id}/thumbnail", dependencies=[Depends(require_designer)])
+@router.put(
+    "/{project_id}/thumbnail",
+    dependencies=[Depends(require_designer)],
+    response_model=ThumbnailUploaded,
+    summary="Replace the project's thumbnail with an uploaded image",
+)
 async def upload_project_thumbnail(
     project_id: str,
     file: UploadFile = File(...),
@@ -629,7 +693,12 @@ async def upload_project_thumbnail(
     }
 
 
-@router.delete("/{project_id}/thumbnail", dependencies=[Depends(require_designer)])
+@router.delete(
+    "/{project_id}/thumbnail",
+    dependencies=[Depends(require_designer)],
+    response_model=ThumbnailCleared,
+    summary="Drop an uploaded thumbnail and fall back to the rendered board",
+)
 async def clear_project_thumbnail(
     project_id: str,
     user: AuthenticatedUser = Depends(require_designer),
@@ -666,7 +735,12 @@ async def get_project_detail(project_id: str, user: AuthenticatedUser = Depends(
     return get_project_for_role_or_404(project_id, user.role)
 
 
-@router.get("/{project_id}/comments/source-urls")
+@router.get(
+    "/{project_id}/comments/source-urls",
+    response_model=ProjectCommentsSourceUrls,
+    response_model_exclude_unset=True,
+    summary="List comment source URLs for a KiCad comments source",
+)
 async def get_project_comments_source_urls(
     request: Request,
     project_id: str,
@@ -695,7 +769,13 @@ async def get_project_comments_source_urls(
         "relative": urls["relative"],
     }
 
-@router.delete("/{project_id}", dependencies=[Depends(require_designer)])
+@router.delete(
+    "/{project_id}",
+    dependencies=[Depends(require_designer)],
+    response_model=ProjectDeleted,
+    response_model_exclude_unset=True,
+    summary="Delete a project and, where Prism owns them, its files",
+)
 async def delete_project_endpoint(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Delete a project from the registry.
@@ -744,7 +824,11 @@ def _project_files_response(
         return project_outputs.list_commit_files(project, commit, project_outputs.output_dir_in(config, output_type))
     return file_service.get_project_files(project.path, output_type)
 
-@router.get("/{project_id}/download")
+@router.get(
+    "/{project_id}/download",
+    responses={200: {"description": "The requested output file.", "content": {"*/*": {}}}},
+    summary="Download one file from the project's output folders",
+)
 async def download_file(
     project_id: str,
     path: str,
@@ -800,7 +884,7 @@ def _download_file_response(
     disposition = "inline" if inline else "attachment"
     return FileResponse(file_path, filename=file_path.name, content_disposition_type=disposition)
 
-@router.get("/{project_id}/readme")
+@router.get("/{project_id}/readme", response_model=ProjectReadme, summary="The project README text")
 async def get_project_readme(
     project_id: str,
     commit: str = None,
@@ -817,7 +901,11 @@ async def get_project_readme(
         raise HTTPException(status_code=404, detail="README not found")
     return {"content": content}
 
-@router.get("/{project_id}/asset/{asset_path:path}")
+@router.get(
+    "/{project_id}/asset/{asset_path:path}",
+    responses={200: {"description": "The requested project file.", "content": {"*/*": {}}}},
+    summary="Serve an asset from the project checkout",
+)
 async def get_project_asset(
     project_id: str,
     asset_path: str,
@@ -857,7 +945,7 @@ def _asset_response(
 
     return FileResponse(file_path)
 
-@router.get("/{project_id}/docs")
+@router.get("/{project_id}/docs", response_model=List[file_service.FileItem], summary="List the documentation folder")
 async def get_docs_files(
     project_id: str,
     commit: Optional[str] = None,
@@ -885,7 +973,7 @@ def _docs_files_response(project: project_service.Project, commit: Optional[str]
 
     return file_service.get_files_recursive(docs_dir)
 
-@router.get("/{project_id}/docs/content")
+@router.get("/{project_id}/docs/content", response_model=DocFileContent, summary="Read one documentation file")
 async def get_doc_file_content(
     project_id: str,
     path: str,
@@ -931,7 +1019,12 @@ def _doc_file_content_response(project: project_service.Project, path: str, comm
         "path": path,
     }
 
-@router.get("/{project_id}/releases")
+@router.get(
+    "/{project_id}/releases",
+    response_model=ProjectReleases,
+    response_model_exclude_unset=True,
+    summary="Paginated Git tags of the project's repository",
+)
 async def get_project_releases(
     project_id: str,
     ref: Optional[str] = None,
@@ -977,7 +1070,7 @@ async def get_project_releases(
         "offset": offset,
     }
 
-@router.get("/{project_id}/commits/distance")
+@router.get("/{project_id}/commits/distance", response_model=CommitDistance, summary="How many commits behind a revision is")
 async def get_project_commit_distance(
     project_id: str,
     commit: str,
@@ -1000,7 +1093,7 @@ async def get_project_commit_distance(
     )
     return {"commits_behind": commits_behind}
 
-@router.get("/{project_id}/commits")
+@router.get("/{project_id}/commits", response_model=ProjectCommits, summary="Paginated commit history of the project")
 async def get_project_commits(
     project_id: str,
     limit: int = Query(default=50, ge=1, le=500),
@@ -1024,7 +1117,11 @@ async def get_project_commits(
     return {**page, "head": head}
 
 
-@router.get("/{project_id}/commits/{commit_hash}/summary")
+@router.get(
+    "/{project_id}/commits/{commit_hash}/summary",
+    response_model=ProjectCommitSummary,
+    summary="Files changed in one commit",
+)
 async def get_project_commit_summary(
     project_id: str,
     commit_hash: str,
@@ -1045,7 +1142,11 @@ async def get_project_commit_summary(
     )
 
 
-@router.get("/{project_id}/commits/{commit_hash}/file")
+@router.get(
+    "/{project_id}/commits/{commit_hash}/file",
+    responses={200: {"description": "The file's bytes at that commit.", "content": {"*/*": {}}}},
+    summary="Serve one file from a commit",
+)
 async def get_project_commit_file(
     project_id: str,
     commit_hash: str,
@@ -1091,7 +1192,11 @@ def _commit_file_response_for_project(
     return commit_file_response(commit_file, inline=True)
 
 
-@router.get("/{project_id}/ibom")
+@router.get(
+    "/{project_id}/ibom",
+    responses={200: {"description": "The interactive BOM page.", "content": {"text/html": {}}}},
+    summary="The project's interactive BOM",
+)
 async def get_project_ibom(
     project_id: str,
     request: Request,
@@ -1121,7 +1226,7 @@ def _ibom_response(project: project_service.Project, commit: Optional[str], requ
 
 # Path Configuration Endpoints
 
-@router.get("/{project_id}/config")
+@router.get("/{project_id}/config", response_model=ProjectPathConfig, summary="The project's path configuration and resolved paths")
 async def get_project_config(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Get path configuration for a project.
@@ -1148,7 +1253,12 @@ async def get_project_config(project_id: str, user: AuthenticatedUser = Depends(
     }
 
 
-@router.post("/{project_id}/detect-paths", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/detect-paths",
+    dependencies=[Depends(require_designer)],
+    response_model=DetectedPaths,
+    summary="Auto-detect a project's paths without saving them",
+)
 async def detect_project_paths(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Run auto-detection on project paths.
@@ -1166,7 +1276,12 @@ async def detect_project_paths(project_id: str, user: AuthenticatedUser = Depend
     }
 
 
-@router.put("/{project_id}/config", dependencies=[Depends(require_designer)])
+@router.put(
+    "/{project_id}/config",
+    dependencies=[Depends(require_designer)],
+    response_model=ProjectConfigSaved,
+    summary="Save a project's path configuration",
+)
 async def update_project_config(
     project_id: str,
     config: PathConfig,
@@ -1214,7 +1329,7 @@ class ProjectDescriptionRequest(BaseModel):
     description: str
 
 
-@router.get("/{project_id}/name")
+@router.get("/{project_id}/name", response_model=ProjectName, summary="The project's display name and fallback name")
 async def get_project_name(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Get the display name for a project.
@@ -1228,7 +1343,12 @@ async def get_project_name(project_id: str, user: AuthenticatedUser = Depends(re
     }
 
 
-@router.put("/{project_id}/name", dependencies=[Depends(require_designer)])
+@router.put(
+    "/{project_id}/name",
+    dependencies=[Depends(require_designer)],
+    response_model=ProjectNameUpdated,
+    summary="Rename the project's display name",
+)
 async def update_project_name(
     project_id: str,
     request: ProjectNameRequest,
@@ -1259,7 +1379,7 @@ async def update_project_name(
     }
 
 
-@router.get("/{project_id}/description")
+@router.get("/{project_id}/description", response_model=ProjectDescription, summary="The project description")
 async def get_project_description(project_id: str, user: AuthenticatedUser = Depends(require_viewer)):
     """
     Get project description from project registry.
@@ -1271,7 +1391,12 @@ async def get_project_description(project_id: str, user: AuthenticatedUser = Dep
     }
 
 
-@router.put("/{project_id}/description", dependencies=[Depends(require_designer)])
+@router.put(
+    "/{project_id}/description",
+    dependencies=[Depends(require_designer)],
+    response_model=ProjectDescriptionUpdated,
+    summary="Update the project's description",
+)
 async def update_project_description(
     project_id: str,
     request: ProjectDescriptionRequest,

@@ -18,7 +18,10 @@ from unittest import mock
 from git import GitCommandError
 
 from app.services import job_service, path_config_service, project_import_service, project_service
+from app.services import event_log
 from app.services.job_runtime import RetryableJobError
+from app.services.workspace_schema_migrations import WORKSPACE_LEDGER
+from support.postgres import requires_scratch_postgres, scratch_schema
 from support.repo import git, set_identity  # noqa: E402
 
 
@@ -254,6 +257,80 @@ class EditingSettingsKeepsSyncFastForwarding(unittest.TestCase):
         self.assertEqual(result["status"], "success", result)
         self.assertEqual(git(self.checkout, "rev-parse", "HEAD"), upstream_head, result["message"])
         self.assertEqual(git(self.checkout, "status", "--porcelain"), "")
+
+
+@requires_scratch_postgres("the revision.synced producer")
+class SyncAppendsRevisionSynced(unittest.TestCase):
+    """A fast-forward is a revision event; a fetch that moves nothing is not."""
+
+    def setUp(self) -> None:
+        self._temporary = tempfile.TemporaryDirectory()
+        root = Path(self._temporary.name)
+        self.addCleanup(self._temporary.cleanup)
+        self.upstream = root / "upstream.git"
+        git(root, "init", "-q", "--bare", "-b", "main", str(self.upstream))
+        self.author = root / "author"
+        git(root, "clone", "-q", str(self.upstream), str(self.author))
+        set_identity(self.author)
+        (self.author / "board.kicad_pro").write_text("{}", encoding="utf-8")
+        git(self.author, "add", "-A")
+        git(self.author, "commit", "-qm", "seed")
+        git(self.author, "push", "-q", "origin", "HEAD:main")
+        self.checkout = root / "checkout"
+        git(root, "clone", "-q", str(self.upstream), str(self.checkout))
+        self.row = {
+            "id": "prj_1",
+            "repo_id": "repo_1",
+            "import_type": "single",
+            "path": str(self.checkout),
+            "parent_repo_path": str(self.checkout),
+            "name": "board",
+            "relative_path": ".",
+            "project_file_rel": "board.kicad_pro",
+            "path_settings": None,
+        }
+        path_config_service.clear_config_cache()
+        self.addCleanup(path_config_service.clear_config_cache)
+        self.events = scratch_schema(self, "sync_events", ledgers=(WORKSPACE_LEDGER,))
+        for patch_ in (
+            mock.patch.object(project_import_service.workspace, "get_project_by_id", return_value=self.row),
+            mock.patch.object(project_import_service.workspace, "update_project", return_value=True),
+            mock.patch.object(project_import_service.workspace, "update_repository_synced"),
+            mock.patch.object(project_import_service, "refresh_project_assets"),
+            mock.patch.object(event_log, "connect", self.events.connection),
+        ):
+            patch_.start()
+            self.addCleanup(patch_.stop)
+
+    def _advance_upstream(self) -> str:
+        (self.author / "board.kicad_sch").write_text("(kicad_sch)", encoding="utf-8")
+        git(self.author, "add", "-A")
+        git(self.author, "commit", "-qm", "upstream work")
+        git(self.author, "push", "-q", "origin", "HEAD:main")
+        return git(self.author, "rev-parse", "HEAD")
+
+    def _events(self):
+        with self.events.connect() as conn:
+            return conn.execute("SELECT kind, project_id, payload FROM ws_events ORDER BY id").fetchall()
+
+    def test_a_fast_forward_appends_revision_synced_with_both_commits(self) -> None:
+        previous = git(self.checkout, "rev-parse", "HEAD")
+        head = self._advance_upstream()
+
+        result = project_import_service.sync_project("prj_1")
+
+        self.assertEqual(result["status"], "success", result)
+        events = self._events()
+        self.assertEqual([(event["kind"], event["project_id"]) for event in events],
+                         [("revision.synced", "prj_1")])
+        self.assertEqual(
+            events[0]["payload"],
+            {"branch": "main", "commit": head, "previousCommit": previous},
+        )
+
+    def test_a_fetch_that_moves_nothing_appends_no_event(self) -> None:
+        self.assertEqual(project_import_service.sync_project("prj_1")["status"], "success")
+        self.assertEqual(self._events(), [])
 
 
 class NoHostKeyPolicyIsWrittenByHand(unittest.TestCase):

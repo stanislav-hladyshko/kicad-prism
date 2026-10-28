@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
 
 from app.core.config import settings
 from app.services import rate_limit_service, service_client_service
@@ -9,7 +10,18 @@ from app.services import rate_limit_service, service_client_service
 router = APIRouter(prefix="/api/oauth", tags=["oauth"])
 
 
-@router.post("/token")
+class ServiceToken(BaseModel):
+    """A client-credentials access token as the OAuth route returns it."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    access_token: str
+    token_type: str
+    expires_in: int
+    scope: str
+
+
+@router.post("/token", response_model=ServiceToken, summary="Exchange client credentials for a service token")
 async def token(
     request: Request,
     grant_type: str = Form(...),

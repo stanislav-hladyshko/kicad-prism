@@ -27,16 +27,19 @@ from typing import Optional, Protocol
 
 from app.core.roles import Role, role_meets_minimum
 from app.core import errors
-from app.core.policy import has_scope
+from app.core.policy import MCP_AUTH_TYPE, has_scope
 from app.core.security import AuthenticatedUser
 from app.services import access_service
 
 DEFAULT_PROMOTE_MIN_ROLE: Role = "designer"
 STATUS_MIN_ROLE: Role = "designer"
+# Auth types that are a person at a browser: a session, or the local guest.
+PERSON_AUTH_TYPES = frozenset({"session", "guest"})
 
 # Kinds of stable actor identity. ``legacy`` never describes a live actor; it
 # marks rows whose author was recorded as free text before TR-01.
 ACTOR_KIND_USER = "user"
+ACTOR_KIND_AGENT = "agent"
 ACTOR_KIND_SERVICE = "service"
 ACTOR_KIND_GUEST = "guest"
 ACTOR_KIND_LEGACY = "legacy"
@@ -79,6 +82,8 @@ class ActorIdentity:
     display_name: str
     role: Role
     auth_type: str
+    client_id: str = ""
+    token_id: str = ""
 
     @property
     def is_admin(self) -> bool:
@@ -120,6 +125,10 @@ def is_guest(user: AuthenticatedUser) -> bool:
 def resolve_actor(user: AuthenticatedUser) -> ActorIdentity:
     """Map an authenticated caller onto its stable actor identity (D6).
 
+    An MCP client resolves exactly like the signed-in user it acts for: the
+    same ``user_id``, so that person owns the agent's comments. Only
+    ``actor_kind`` differs (``agent``), which marks the write in history.
+
     Raises ``CommentPermissionError`` for callers that may never mutate
     comments (remote-provider tokens) and for session users whose identity
     cannot be resolved to a ``users`` row: recording a mutation under a
@@ -139,6 +148,8 @@ def resolve_actor(user: AuthenticatedUser) -> ActorIdentity:
             display_name=user.name or client_id,
             role=user.role,
             auth_type=user.auth_type,
+            client_id=client_id,
+            token_id=user.token_id,
         )
 
     if is_guest(user):
@@ -148,6 +159,8 @@ def resolve_actor(user: AuthenticatedUser) -> ActorIdentity:
             display_name=user.name or "Guest",
             role=user.role,
             auth_type=user.auth_type,
+            client_id=user.client_id,
+            token_id=user.token_id,
         )
 
     user_id = user.user_id.strip()
@@ -166,20 +179,22 @@ def resolve_actor(user: AuthenticatedUser) -> ActorIdentity:
         display_name = display_name or row.get("name") or user.email
     return ActorIdentity(
         actor_id=user_id,
-        actor_kind=ACTOR_KIND_USER,
+        actor_kind=ACTOR_KIND_AGENT if user.auth_type == MCP_AUTH_TYPE else ACTOR_KIND_USER,
         display_name=display_name or user.email,
         role=user.role,
         auth_type=user.auth_type,
+        client_id=user.client_id,
+        token_id=user.token_id,
     )
 
 
 def require_write_scope(user: AuthenticatedUser) -> None:
-    """Bearer callers need ``api:write``; session cookies carry no scopes."""
+    """Bearer callers need ``comments:write`` (``api:write`` implies it); session cookies carry no scopes."""
     if user.auth_type == "session":
         return
-    if has_scope(user, "api:write"):
+    if has_scope(user, "comments:write"):
         return
-    raise CommentPermissionError("scope_required", "api:write scope required")
+    raise CommentPermissionError("scope_required", "comments:write scope required")
 
 
 def is_owner(actor: ActorIdentity, target: Authored) -> bool:
@@ -217,6 +232,9 @@ def authorize(
         raise CommentPermissionError("not_owner", "Only the author or an admin can change this comment")
 
     if action == CommentAction.RESOLVE:
+        # D6: only people resolve or reopen threads. A token may reply, never close.
+        if actor.auth_type not in PERSON_AUTH_TYPES:
+            raise CommentPermissionError("person_required", "Only a person signed in to Prism can resolve or reopen a thread")
         if actor.actor_kind == ACTOR_KIND_GUEST and linked:
             raise CommentPermissionError(
                 "publication_required",

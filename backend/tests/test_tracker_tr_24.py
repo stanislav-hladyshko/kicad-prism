@@ -80,7 +80,7 @@ class DeepLinkTests(unittest.TestCase):
         )
         self.assertEqual(
             url,
-            f"{PUBLIC_BASE}/projects/prj_47c2551996d0?commit={COMMIT_A}&view=pcb&comment={COMMENT_ID}",
+            f"{PUBLIC_BASE}/project/prj_47c2551996d0?commit={COMMIT_A}&view=pcb&comment={COMMENT_ID}",
         )
 
     def test_variant_is_preserved_in_canvas_link(self) -> None:  # F2.variant_url_preserved
@@ -139,8 +139,28 @@ class DeepLinkTests(unittest.TestCase):
             project_id="prj_monorepo",
             comment=comment,
         )
-        self.assertIn("/projects/prj_monorepo?", url)
+        self.assertIn("/project/prj_monorepo?", url)
         self.assertNotIn("hw/boards", url.split("?", 1)[0])
+
+    def test_deep_link_path_is_project_singular(self) -> None:  # MCP-07
+        canvas = build_prism_deep_link(
+            public_base_url=PUBLIC_BASE,
+            project_id="prj_test",
+            comment=_canvas_comment(),
+        )
+        comparison = build_prism_deep_link(
+            public_base_url=PUBLIC_BASE,
+            project_id="prj_test",
+            comment={
+                "id": COMMENT_ID,
+                "scope": "comparison",
+                "anchor": {"baseCommit": COMMIT_A, "compareCommit": COMMIT_B},
+            },
+        )
+        for url in (canvas, comparison):
+            path = url.split("?", 1)[0]
+            self.assertEqual(path, f"{PUBLIC_BASE}/project/prj_test")
+            self.assertNotIn("/projects/", url)
 
 
 class DraftRenderingTests(unittest.TestCase):
@@ -177,7 +197,7 @@ class DraftRenderingTests(unittest.TestCase):
         self.assertEqual(draft.assignees, ["arjun-gh"])
         self.assertEqual(
             draft.contextBlock.prismUrl,
-            f"{PUBLIC_BASE}/projects/prj_47c2551996d0?commit={COMMIT_A}&view=pcb&comment={COMMENT_ID}",
+            f"{PUBLIC_BASE}/project/prj_47c2551996d0?commit={COMMIT_A}&view=pcb&comment={COMMENT_ID}",
         )
         self.assertEqual(draft.contextBlock.requestedBy, "@priya-gh (Priya Raman)")
         self.assertEqual(

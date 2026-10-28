@@ -177,6 +177,34 @@ class ViewerBundleTest(unittest.TestCase):
         self.assertEqual((answer["status"], answer["available"]), ("missing", False))
         self.assertIsNone(v3d.document(PROJECT_ID, COMMIT))
 
+    def test_status_and_document_match_the_response_models(self) -> None:
+        """Every status state and the analytic document serialize unchanged."""
+
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import project_viewer_3d_models as models
+
+        failure = {"path": v3d.PACK, "code": "materialization-failed", "message": "zone outline open"}
+        for opened in (
+            self.opened(active=True),
+            self.opened(write_bundle(self.tmp / "b1.prism", board="complete")),
+            self.opened(write_bundle(self.tmp / "b2.prism", board="complete", models="complete")),
+            self.opened(write_bundle(self.tmp / "b3.prism", board_failure=failure)),
+            self.opened(absent=True),
+        ):
+            self.serve(opened)
+            answer = v3d.status(PROJECT_ID, COMMIT)
+            typed = models.WebGpu3dStatus.model_validate(answer).model_dump(
+                mode="json", by_alias=True, exclude_unset=True
+            )
+            self.assertEqual(typed, jsonable_encoder(answer))
+            document = v3d.document(PROJECT_ID, COMMIT)
+            if document is not None:
+                typed_document = models.WebGpu3dAnalytic.model_validate(document).model_dump(
+                    mode="json", by_alias=True, exclude_unset=True
+                )
+                self.assertEqual(typed_document, jsonable_encoder(document))
+
     def test_only_the_three_members_are_served_and_only_when_stored(self) -> None:
         self.serve(self.opened(write_bundle(self.tmp / "b.prism", board="complete")))
         self.assertEqual(v3d.member(PROJECT_ID, REVISION_KEY, GENERATOR_DIGEST, v3d.PACK), (PACK_BYTES, "application/octet-stream"))

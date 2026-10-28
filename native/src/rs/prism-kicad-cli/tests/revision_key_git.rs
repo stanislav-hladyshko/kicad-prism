@@ -112,12 +112,15 @@ fn a_dirty_tree_has_the_key_of_its_next_commit() {
     write(&repo, "new.kicad_sym", b"(kicad_symbol_lib)\n");
     write(&repo, "ignored.kicad_sch", b"(kicad_sch)\n");
     std::fs::remove_file(repo.join("lib/part.step")).unwrap();
-    std::fs::set_permissions(
-        repo.join("p.kicad_pcb"),
-        std::os::unix::fs::PermissionsExt::from_mode(0o755),
-    )
-    .unwrap();
-    std::os::unix::fs::symlink("lib", repo.join("models")).unwrap();
+    #[cfg(unix)]
+    {
+        std::fs::set_permissions(
+            repo.join("p.kicad_pcb"),
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )
+        .unwrap();
+        std::os::unix::fs::symlink("lib", repo.join("models")).unwrap();
+    }
     let nested = repo.join("vendor/kicad-libraries");
     std::fs::create_dir_all(&nested).unwrap();
     git(&nested, &["init", "-q"]);
@@ -146,8 +149,12 @@ fn a_dirty_tree_has_the_key_of_its_next_commit() {
             )
         })
         .collect();
-    assert!(kinds.contains(&("p.kicad_pcb", "executable")));
-    assert!(kinds.contains(&("models", "symlink")));
+    // Windows has no mode bits and, without privileges, no symlinks: the test makes neither there.
+    #[cfg(unix)]
+    {
+        assert!(kinds.contains(&("p.kicad_pcb", "executable")));
+        assert!(kinds.contains(&("models", "symlink")));
+    }
     assert!(kinds.contains(&("vendor/kicad-libraries", "gitlink")));
     assert!(!kinds.iter().any(|(path, _)| *path == "ignored.kicad_sch"));
 }
@@ -289,4 +296,17 @@ fn a_bundle_built_with_the_key_record_carries_its_entries() {
         (wrong.code, wrong.code_field()),
         (7, "revision-key-mismatch")
     );
+}
+
+/// The key of `repository()`, computed on Linux and macOS. The key covers the
+/// selected files' bytes and paths, not commit metadata, so a Windows checkout
+/// that holds the committed bytes (Prism clones with `core.autocrlf=false`)
+/// must give the same key from the commit and from the working tree.
+const REPOSITORY_KEY: &str = "a5c06e0458d9eff21b9990d12f6905d20c108bf74bd2b77c9d97848edaa6867e";
+
+#[test]
+fn the_key_is_the_same_on_every_os() {
+    let repo = repository();
+    assert_eq!(commit_key(&repo), REPOSITORY_KEY, "commit");
+    assert_eq!(worktree_key(&repo), REPOSITORY_KEY, "working tree");
 }

@@ -11,10 +11,9 @@ use prism_bundle::revision_key::{
 };
 use prism_bundle::{Failure, LimitName, Limits, Outcome};
 use serde_json::{Value, json};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 /// What the command printed.
@@ -197,7 +196,7 @@ impl Worktree<'_> {
         candidate: &Candidate,
         pending: &mut Vec<Vec<u8>>,
     ) -> Outcome<Option<ListingRecord>> {
-        let host = self.git.repo().join(OsStr::from_bytes(&candidate.path));
+        let host = self.git.repo().join(os_from_bytes(&candidate.path));
         let Ok(metadata) = std::fs::symlink_metadata(&host) else {
             return Ok(None);
         };
@@ -213,7 +212,7 @@ impl Worktree<'_> {
         if kind.is_symlink() {
             let target = std::fs::read_link(&host)
                 .map_err(|error| git_failed(&format!("a link could not be read: {error}")))?;
-            let id = self.format.blob_id(target.as_os_str().as_bytes());
+            let id = self.format.blob_id(&os_to_bytes(target.as_os_str()));
             return Ok(Some(record("120000", "blob", &id, &candidate.path)));
         }
         if !kind.is_file() {
@@ -226,7 +225,7 @@ impl Worktree<'_> {
             .filter(|mode| matches!(*mode, "100644" | "100755"));
         let mode = match (self.file_mode, tracked_mode) {
             (false, Some(mode)) => mode.to_owned(),
-            _ if metadata.permissions().mode() & 0o100 != 0 => "100755".to_owned(),
+            _ if is_executable(&metadata) => "100755".to_owned(),
             _ => "100644".to_owned(),
         };
         pending.push(candidate.path.clone());
@@ -261,12 +260,13 @@ impl Worktree<'_> {
             }
         }
         for path in single {
+            let name = os_from_bytes(path);
             let args = [
                 OsStr::new("hash-object"),
                 OsStr::new("--path"),
-                OsStr::from_bytes(path),
+                name.as_ref(),
                 OsStr::new("--"),
-                OsStr::from_bytes(path),
+                name.as_ref(),
             ];
             let output = self
                 .git
@@ -279,6 +279,39 @@ impl Worktree<'_> {
         }
         Ok(ids)
     }
+}
+
+/// A git path as a host path. Git prints UTF-8 on Windows.
+#[cfg(unix)]
+fn os_from_bytes(bytes: &[u8]) -> Cow<'_, OsStr> {
+    Cow::Borrowed(std::os::unix::ffi::OsStrExt::from_bytes(bytes))
+}
+
+#[cfg(windows)]
+fn os_from_bytes(bytes: &[u8]) -> Cow<'_, OsStr> {
+    Cow::Owned(String::from_utf8_lossy(bytes).into_owned().into())
+}
+
+/// A symlink target as git stores it: raw bytes, with `/` on Windows.
+#[cfg(unix)]
+fn os_to_bytes(name: &OsStr) -> Cow<'_, [u8]> {
+    Cow::Borrowed(std::os::unix::ffi::OsStrExt::as_bytes(name))
+}
+
+#[cfg(windows)]
+fn os_to_bytes(name: &OsStr) -> Cow<'_, [u8]> {
+    Cow::Owned(name.to_string_lossy().replace('\\', "/").into_bytes())
+}
+
+/// The owner-execute bit. Windows has none: the index mode decides there.
+#[cfg(unix)]
+fn is_executable(metadata: &std::fs::Metadata) -> bool {
+    std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o100 != 0
+}
+
+#[cfg(windows)]
+fn is_executable(_metadata: &std::fs::Metadata) -> bool {
+    false
 }
 
 fn record(mode: &str, kind: &str, object_id: &str, path: &[u8]) -> ListingRecord {

@@ -10,6 +10,7 @@ import {
     isAssembled,
     type BomAssemblyFilter,
 } from "@/components/design-variants/assembly-filter";
+import { buildBom, type BomLine } from "@/lib/engineering-bom";
 import { cn } from "@/lib/utils";
 import type {
     PrismSelection,
@@ -17,35 +18,7 @@ import type {
     SemanticComponent,
 } from "@/types/prism-selection";
 
-export const BOM_REQUIRED_COLUMNS = [
-    "Reference",
-    "Qty",
-    "Value",
-    "DNP",
-    "In BOM",
-    "Description",
-    "Datasheet",
-    "Manufacturer",
-    "Manufacturer Part Number",
-    "Vendor",
-    "Vendor Part Number",
-    "Footprint",
-    "Mass (g)",
-    "RQjC (C/W)",
-    "RQjC_top (C/W)",
-    "Temp_max (C)",
-    "Temp_min (C)",
-    "Power Dissipation (W)",
-    "Rate",
-] as const;
-
 const EMPTY_COMPONENTS: SemanticComponent[] = [];
-
-interface BomGroup {
-    key: string;
-    components: SemanticComponent[];
-    fields: Record<string, string>;
-}
 
 interface BomSearchTerm {
     field?: string;
@@ -69,28 +42,6 @@ interface EngineeringBomTableProps {
     components?: SemanticComponent[] | null;
 }
 
-const naturalReferenceSort = (left: SemanticComponent, right: SemanticComponent) =>
-    left.reference.localeCompare(right.reference, undefined, { numeric: true, sensitivity: "base" });
-
-const fieldText = (value: string | number | boolean | null | undefined): string => {
-    if (value === null || value === undefined) return "";
-    if (typeof value === "boolean") return value ? "Yes" : "No";
-    return String(value);
-};
-
-const componentFields = (component: SemanticComponent): Record<string, string> => ({
-    Value: component.value || "",
-    Footprint: component.footprint || "",
-    ...Object.fromEntries(
-        Object.entries(component.fields || {}).map(([key, value]) => [key, fieldText(value)]),
-    ),
-});
-
-const isInternalField = (field: string) => {
-    const normalized = field.toLocaleLowerCase();
-    return normalized.startsWith("_") || normalized.startsWith("kicad_");
-};
-
 const datasheetUrl = (value: string): string | null => {
     try {
         const url = new URL(value);
@@ -111,15 +62,6 @@ const defaultColumnWidth = (column: string): number => {
     return 170;
 };
 
-const commonFields = (components: SemanticComponent[]): Record<string, string> => {
-    const rows = components.map(componentFields);
-    const keys = new Set(rows.flatMap((row) => Object.keys(row)));
-    return Object.fromEntries([...keys].map((key) => {
-        const values = [...new Set(rows.map((row) => row[key] || ""))];
-        return [key, values.length === 1 ? values[0] : "Mixed"];
-    }));
-};
-
 const parseBomQuery = (query: string): { terms: BomSearchTerm[]; lockLastReference: boolean } => {
     const terms: BomSearchTerm[] = [];
     const tokenPattern = /[^\s:"]+:"[^"]*"|"[^"]*"|\S+/g;
@@ -135,7 +77,7 @@ const parseBomQuery = (query: string): { terms: BomSearchTerm[]; lockLastReferen
     return { terms, lockLastReference: /\s$/.test(query) };
 };
 
-const searchableField = (group: BomGroup, field: string): string => {
+const searchableField = (group: BomLine, field: string): string => {
     const aliases: Record<string, string[]> = {
         value: ["Value"],
         dnp: ["DNP", "dnp"],
@@ -155,10 +97,10 @@ const searchableField = (group: BomGroup, field: string): string => {
         .toLocaleLowerCase();
 };
 
-const groupMatchesQuery = (group: BomGroup, query: string): boolean => {
+const groupMatchesQuery = (group: BomLine, query: string): boolean => {
     const { terms, lockLastReference } = parseBomQuery(query);
     if (!terms.length) return true;
-    const references = group.components.map((component) => component.reference.toLocaleLowerCase());
+    const references = group.references.map((reference) => reference.toLocaleLowerCase());
     const haystack = [...references, ...Object.values(group.fields)].join(" ").toLocaleLowerCase();
     // Each field search builds the same alias string per term; resolve it once
     // per field so repeated terms share the lookup.
@@ -234,44 +176,21 @@ export function EngineeringBomTable({
         window.addEventListener("pointerup", handleUp);
     }, []);
 
-    const columns = useMemo(() => {
-        const required = new Set<string>(BOM_REQUIRED_COLUMNS);
-        const extras = new Set<string>();
-        for (const component of allComponents) {
-            for (const field of Object.keys(component.fields || {})) {
-                if (!required.has(field) && !isInternalField(field)) extras.add(field);
-            }
-        }
-        return [...BOM_REQUIRED_COLUMNS, ...[...extras].sort((left, right) => left.localeCompare(right))];
-    }, [allComponents]);
+    const bom = useMemo(
+        () => buildBom(allComponents, assemblyFilter),
+        [allComponents, assemblyFilter],
+    );
+    const { columns, lines } = bom;
 
-    const groups = useMemo(() => {
-        const byValue = new Map<string, SemanticComponent[]>();
-        for (const component of filteredComponents) {
-            const fields = componentFields(component);
-            const valueKey = fields.Value.trim().toLocaleLowerCase();
-            const group = byValue.get(valueKey) || [];
-            group.push(component);
-            byValue.set(valueKey, group);
-        }
-        return [...byValue.entries()]
-            .map(([key, components]): BomGroup => ({
-                key: `value:${key}`,
-                components: components.sort(naturalReferenceSort),
-                fields: commonFields(components),
-            }))
-            .sort((left, right) =>
-                (left.fields.Value || "").localeCompare(right.fields.Value || "", undefined, {
-                    numeric: true,
-                    sensitivity: "base",
-                }),
-            );
-    }, [filteredComponents]);
+    const componentsByReference = useMemo(
+        () => new Map(filteredComponents.map((component) => [component.reference, component])),
+        [filteredComponents],
+    );
 
     const visibleGroups = useMemo(() => {
-        if (!query.trim()) return groups;
-        return groups.filter((group) => groupMatchesQuery(group, query));
-    }, [groups, query]);
+        if (!query.trim()) return lines;
+        return lines.filter((group) => groupMatchesQuery(group, query));
+    }, [lines, query]);
 
     const selectedReference = selection?.kind === "component" || selection?.kind === "terminal"
         ? selection.reference
@@ -396,7 +315,7 @@ export function EngineeringBomTable({
                     </thead>
                     <tbody>
                         {visibleGroups.map((group) => {
-                            const groupSelected = group.components.some((component) => component.reference === selectedReference);
+                            const groupSelected = selectedReference !== null && group.references.includes(selectedReference);
                             return (
                                 <tr key={group.key} className={cn("group", groupSelected && "bg-accent/60")}>
                                     {columns.map((column, index) => {
@@ -411,17 +330,17 @@ export function EngineeringBomTable({
                                                    pick" before anyone hovers, and the accent tint on
                                                    hover confirms it. */
                                                 <div className="flex max-w-md flex-wrap gap-1">
-                                                    {group.components.map((component) => {
-                                                        const isSelected =
-                                                            selectedReference === component.reference;
+                                                    {group.references.map((reference) => {
+                                                        const component = componentsByReference.get(reference);
+                                                        const isSelected = selectedReference === reference;
                                                         return (
                                                             <Button
-                                                                key={component.reference}
+                                                                key={reference}
                                                                 type="button"
                                                                 size="sm"
                                                                 variant={isSelected ? "default" : "ghost"}
                                                                 aria-pressed={isSelected}
-                                                                title={`Select ${component.reference}`}
+                                                                title={`Select ${reference}`}
                                                                 className={cn(
                                                                     "h-6 cursor-pointer px-1.5 font-mono text-xs transition-colors",
                                                                     !isSelected && [
@@ -434,18 +353,18 @@ export function EngineeringBomTable({
                                                                     kind: "component",
                                                                     sourceContext: "BOM",
                                                                     sourceRevisionKey: semanticIndex.designKey ?? semanticIndex.sourceRevisionKey,
-                                                                    reference: component.reference,
-                                                                    componentUid: component.componentUid,
+                                                                    reference,
+                                                                    componentUid: component?.componentUid,
                                                                 })}
                                                             >
-                                                                {component.reference}
+                                                                {reference}
                                                             </Button>
                                                         );
                                                     })}
                                                 </div>
                                             );
                                         } else if (column === "Qty") {
-                                            content = group.components.length;
+                                            content = group.quantity;
                                         } else {
                                             const value = group.fields[column] || "";
                                             const url = column === "Datasheet" ? datasheetUrl(value) : null;

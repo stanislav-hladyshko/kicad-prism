@@ -221,7 +221,17 @@ async def read_result(project_id: str, run_id: str, user: AuthenticatedUser = De
     return row["result"]
 
 
-@router.get(RUN + "/files/{path:path}")
+@router.get(
+    RUN + "/files/{path:path}",
+    response_class=FileResponse,
+    summary="Download one file a run produced",
+    responses={
+        200: {
+            "content": {"application/json": {"schema": {"description": "The result document."}}},
+            "description": "The result file.",
+        }
+    },
+)
 async def read_result_file(
     project_id: str, run_id: str, path: str, user: AuthenticatedUser = Depends(require_viewer),
 ) -> FileResponse:
@@ -230,7 +240,12 @@ async def read_result_file(
     return FileResponse(runs.result_file(row, path), media_type="application/json")
 
 
-@router.get(RUN + "/materialization")
+@router.get(
+    RUN + "/materialization",
+    response_class=Response,
+    summary="The bundle's analytic pack the engine solved against",
+    responses={200: {"content": {"application/octet-stream": {}}, "description": "The analytic pack."}},
+)
 async def read_run_materialization(
     project_id: str, run_id: str, user: AuthenticatedUser = Depends(require_viewer),
 ) -> Response:

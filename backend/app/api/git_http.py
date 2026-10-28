@@ -40,7 +40,7 @@ from app.services import git_host_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(include_in_schema=False)
 
 # The only paths git actually asks for. Anything else is not a git client and has no
 # business being routed into http-backend.
@@ -103,7 +103,7 @@ def _authorise(user: AuthenticatedUser, project_id: str, path: str) -> None:
     A hidden or unknown project is a 404, as it is in the API.
     """
     writing = any(path.endswith(p) for p in _WRITE_PATHS)
-    # Tokens carry scopes as well as the user's role: a push needs api:write, a clone api:read.
+    # Tokens carry scopes as well as the user's role: a push needs design:write, a clone api:read.
     policy.authorize(user, "design" if writing else "read")
     get_project_for_role_or_404(project_id, user.role)
 

@@ -226,6 +226,25 @@ def _m013_rich_content_and_attachments(conn) -> None:
     )
 
 
+def _m016_actor_columns(conn) -> None:
+    """Record which client and token wrote a comment and its history (ADR §3.5).
+
+    ``author_client_id`` names the MCP or service client on a root or reply;
+    the revision columns name the door (``auth_type``), the client, and the
+    token id, which stays internal for audit. Sessions write NULL.
+    """
+    conn.execute(
+        ";\n".join((
+            "ALTER TABLE comment_revisions ADD COLUMN IF NOT EXISTS editor_auth_type TEXT",
+            "ALTER TABLE comment_revisions ADD COLUMN IF NOT EXISTS editor_client_id TEXT",
+            "ALTER TABLE comment_revisions ADD COLUMN IF NOT EXISTS editor_token_id TEXT",
+            "ALTER TABLE comments ADD COLUMN IF NOT EXISTS author_client_id TEXT",
+            "ALTER TABLE comment_replies ADD COLUMN IF NOT EXISTS author_client_id TEXT",
+        )),
+        prepare=False,
+    )
+
+
 def _m100_anchor_design_key(conn) -> None:
     """Store the displayed revision's design key beside its commit (K2 §3.6).
 
@@ -257,6 +276,7 @@ MIGRATIONS: List[Tuple[int, str, Callable[[object], None]]] = [
     (13, "rich_content_and_attachments", _m013_rich_content_and_attachments),
     (14, "attachment_remote_links", attachment_links.apply_schema),
     (15, "comment_reactions", comment_social.apply_schema),
+    (16, "actor_columns", _m016_actor_columns),
     (100, "anchor_design_key", _m100_anchor_design_key),
 ]
 

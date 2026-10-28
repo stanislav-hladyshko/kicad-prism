@@ -1,13 +1,16 @@
 """Commit-pinned Prism viewer deep links (TR-24, C8).
 
 Deep links are generated from ``PUBLIC_BASE_URL`` and the comment's immutable
-anchor. Formatting is pure string assembly — no network calls.
+anchor. The URL itself is built by ``app.core.links.project_url``, the one
+place Prism's browser route is spelled. Formatting is pure string assembly —
+no network calls.
 """
 
 from __future__ import annotations
 
-from typing import Mapping, Optional
-from urllib.parse import quote, urlencode
+from typing import Mapping
+
+from app.core.links import normalize_public_base_url, project_url
 
 VIEW_BY_CONTEXT = {
     "PCB": "pcb",
@@ -21,14 +24,6 @@ DIFF_BY_DOMAIN = {
     "STACKUP": "stackup",
     "FABRICATION": "fabrication",
 }
-
-
-def normalize_public_base_url(base: str) -> str:
-    return (base or "").strip().rstrip("/")
-
-
-def _project_path(project_id: str) -> str:
-    return f"/projects/{quote(project_id, safe='')}"
 
 
 def build_canvas_deep_link(
@@ -47,20 +42,20 @@ def build_canvas_deep_link(
     if not base:
         raise ValueError("public_base_url is required")
     view = VIEW_BY_CONTEXT.get((context or "").strip().upper(), "pcb")
-    params: dict[str, str] = {
-        "commit": (commit or "").strip(),
-        "view": view,
-        "comment": (comment_id or "").strip(),
-    }
-    if not params["commit"] or not params["comment"]:
+    commit_sha = (commit or "").strip()
+    comment = (comment_id or "").strip()
+    if not commit_sha or not comment:
         raise ValueError("commit and comment_id are required for canvas deep links")
-    variant_name = (variant or "").strip()
-    if variant_name:
-        params["variant"] = variant_name
-    item = (semantic_item_id or "").strip()
-    if item:
-        params["item"] = item
-    return f"{base}{_project_path(project_id)}?{urlencode(params)}"
+    # Parameter order is part of the contract: TR-41 reads this URL.
+    return project_url(
+        base,
+        project_id,
+        commit=commit_sha,
+        view=view,
+        comment=comment,
+        variant=(variant or "").strip() or None,
+        item=(semantic_item_id or "").strip() or None,
+    )
 
 
 def build_comparison_deep_link(
@@ -85,21 +80,20 @@ def build_comparison_deep_link(
     if not base_sha or not compare_sha or not comment:
         raise ValueError("base_commit, compare_commit and comment_id are required")
     domain = (comparison_domain or "SCH").strip().upper()
-    params: dict[str, str] = {
-        "section": "history",
-        "base": base_sha,
-        "compare": compare_sha,
-        "view": "semantic",
-        "diff": DIFF_BY_DOMAIN.get(domain, "sch"),
-        "comment": comment,
-    }
     side = (selected_side or "").strip().lower()
-    if side in {"base", "compare"}:
-        params["side"] = side
-    item = (semantic_item_id or "").strip()
-    if item:
-        params["item"] = item
-    return f"{base}{_project_path(project_id)}?{urlencode(params)}"
+    # Parameter order is part of the contract: TR-41 reads this URL.
+    return project_url(
+        base,
+        project_id,
+        section="history",
+        base=base_sha,
+        compare=compare_sha,
+        view="semantic",
+        diff=DIFF_BY_DOMAIN.get(domain, "sch"),
+        comment=comment,
+        side=side if side in {"base", "compare"} else None,
+        item=(semantic_item_id or "").strip() or None,
+    )
 
 
 def build_prism_deep_link(

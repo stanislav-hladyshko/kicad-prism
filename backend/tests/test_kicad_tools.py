@@ -158,6 +158,13 @@ class LocalRunTests(unittest.TestCase):
         self.assertEqual(set(runs[0]), {"tool", "exit", "elapsed_ms", "peak_rss_bytes"})
         self.assertEqual((runs[0]["tool"], runs[0]["exit"]), ("kicad-cli", 2))
 
+    def test_a_version_probe_is_not_recorded_as_a_run(self) -> None:
+        tool = self._tool("print('10.0.7')")
+        kicad_tools._versions.pop(tool.executable(), None)
+        with kicad_tools.recording() as runs:
+            self.assertEqual(tool.version(), "10.0.7")
+        self.assertEqual(runs, [])
+
     def test_a_run_past_its_timeout_is_killed(self) -> None:
         marker = self.root / "finished"
         tool = self._tool(f"time.sleep(5); open({str(marker)!r}, 'w').close()")

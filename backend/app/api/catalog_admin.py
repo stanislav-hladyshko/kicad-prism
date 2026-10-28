@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.api import catalog_admin_models as models
 from app.api._helpers import preview_file_response
 from app.core.errors import caller_errors, value_errors_as
 from app.core.config import settings
@@ -223,7 +224,8 @@ class SaveImportDraftsRequest(BaseModel):
     drafts: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
-@router.get("/components")
+@router.get("/components", response_model=models.CatalogComponentPage, response_model_exclude_unset=True,
+            summary="List catalog components")
 def list_catalog_components(
     q: str = Query(default=""),
     source: str | None = Query(default=None),
@@ -257,19 +259,22 @@ def list_catalog_components(
         )
 
 
-@router.get("/categories")
+@router.get("/categories", response_model=models.CatalogCategories, response_model_exclude_unset=True,
+            summary="List released catalog categories")
 def list_catalog_categories(user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     return {"categories": catalog_service.list_categories()}
 
 
-@router.get("/workflow/summary")
+@router.get("/workflow/summary", response_model=models.WorkflowSummary, response_model_exclude_unset=True,
+            summary="Count components by workflow stage")
 def workflow_summary(user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     return catalog_service.workflow_summary()
 
 
-@router.get("/release-queue")
+@router.get("/release-queue", response_model=models.ReleaseQueuePage, response_model_exclude_unset=True,
+            summary="List the release queue")
 def release_queue(
     q: str = Query(default=""),
     workflow_stage: str = Query(default="all", pattern="^(all|qa_review|done)$"),
@@ -293,7 +298,8 @@ def release_queue(
         return {**result, "summary": catalog_service.release_queue_summary()}
 
 
-@router.get("/health")
+@router.get("/health", response_model=models.CatalogHealth, response_model_exclude_unset=True,
+            summary="Report catalog health")
 def catalog_health(
     check_files: bool = Query(default=False),
     user: AuthenticatedUser = Depends(require_catalog_reader),
@@ -304,7 +310,8 @@ def catalog_health(
     return catalog_service.catalog_health(check_released_files=check_files)
 
 
-@router.post("/import-sessions/projects", status_code=202)
+@router.post("/import-sessions/projects", status_code=202, response_model=models.ImportSessionCreated,
+             response_model_exclude_unset=True, summary="Start a project component import")
 def create_project_import_session(
     payload: ProjectImportRequest,
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -346,7 +353,8 @@ def _folder_snapshot_for_user(snapshot_id: str, user: AuthenticatedUser) -> dict
     return snapshot
 
 
-@router.get("/import-sources/folder-roots")
+@router.get("/import-sources/folder-roots", response_model=models.FolderImportRootPage,
+            response_model_exclude_unset=True, summary="List server import roots")
 def list_folder_import_roots(user: AuthenticatedUser = Depends(require_catalog_writer)):
     _ = user
     return {
@@ -357,7 +365,8 @@ def list_folder_import_roots(user: AuthenticatedUser = Depends(require_catalog_w
     }
 
 
-@router.post("/import-snapshots/folders", status_code=201)
+@router.post("/import-snapshots/folders", status_code=201, response_model=models.FolderSnapshot,
+             response_model_exclude_unset=True, summary="Create a folder import snapshot")
 def create_folder_snapshot(
     payload: FolderSnapshotRequest,
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -369,7 +378,9 @@ def create_folder_snapshot(
     )
 
 
-@router.post("/import-snapshots/folders/{snapshot_id}/files", status_code=201)
+@router.post("/import-snapshots/folders/{snapshot_id}/files", status_code=201,
+             response_model=models.FolderSnapshotFile, response_model_exclude_unset=True,
+             summary="Upload a file into a folder snapshot")
 async def upload_folder_snapshot_file(
     snapshot_id: str,
     relative_path: str = Form(...),
@@ -395,7 +406,8 @@ async def upload_folder_snapshot_file(
         await file.close()
 
 
-@router.post("/import-snapshots/folders/{snapshot_id}/discover")
+@router.post("/import-snapshots/folders/{snapshot_id}/discover", response_model=models.FolderDiscovery,
+             response_model_exclude_unset=True, summary="Discover components in a folder snapshot")
 def discover_folder_snapshot(
     snapshot_id: str,
     payload: FolderDiscoveryRequest,
@@ -427,7 +439,9 @@ def discover_folder_snapshot(
         return discovery
 
 
-@router.post("/import-snapshots/folders/{snapshot_id}/complete", status_code=202)
+@router.post("/import-snapshots/folders/{snapshot_id}/complete", status_code=202,
+             response_model=models.ImportSessionCreated, response_model_exclude_unset=True,
+             summary="Complete a folder snapshot and start its import")
 def complete_folder_snapshot(
     snapshot_id: str,
     payload: FolderApprovalRequest | None = None,
@@ -455,7 +469,9 @@ def complete_folder_snapshot(
         return {**session, "job_id": job["id"]}
 
 
-@router.post("/import-snapshots/folders/server", status_code=202)
+@router.post("/import-snapshots/folders/server", status_code=202,
+             response_model=models.ImportSessionCreated, response_model_exclude_unset=True,
+             summary="Import a server folder")
 def create_server_folder_snapshot(
     payload: ServerFolderImportRequest,
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -486,7 +502,8 @@ def create_server_folder_snapshot(
         return {**session, "job_id": job["id"]}
 
 
-@router.get("/import-sessions/{session_id}")
+@router.get("/import-sessions/{session_id}", response_model=models.ImportSession,
+            response_model_exclude_unset=True, summary="Read an import session")
 def get_project_import_session(
     session_id: str,
     user: AuthenticatedUser = Depends(require_catalog_reader),
@@ -507,7 +524,8 @@ def delete_project_import_session(
     catalog_service.delete_project_import_session(session_id)
 
 
-@router.get("/jobs/{job_id}")
+@router.get("/jobs/{job_id}", response_model=models.CatalogJobWithEvents, response_model_exclude_unset=True,
+            summary="Read a catalog job")
 def get_catalog_job(job_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     job = catalog_jobs.get(job_id)
     if not job:
@@ -516,7 +534,8 @@ def get_catalog_job(job_id: str, user: AuthenticatedUser = Depends(require_catal
     return {**job, "events": catalog_jobs.events(job_id)}
 
 
-@router.get("/import-sessions")
+@router.get("/import-sessions", response_model=models.ImportSessionPage, response_model_exclude_unset=True,
+            summary="List import sessions")
 def list_project_import_sessions(user: AuthenticatedUser = Depends(require_catalog_reader)):
     return {
         "items": catalog_service.list_project_import_sessions(
@@ -534,7 +553,8 @@ def _import_session_for_user(session_id: str, user: AuthenticatedUser) -> dict[s
     return session
 
 
-@router.get("/import-sessions/{session_id}/proposals")
+@router.get("/import-sessions/{session_id}/proposals", response_model=models.ImportProposalPage,
+            response_model_exclude_unset=True, summary="List import proposals")
 def list_project_import_proposals(
     session_id: str,
     user: AuthenticatedUser = Depends(require_catalog_reader),
@@ -554,7 +574,8 @@ def _project_import_proposal_for_user(proposal_id: str, user: AuthenticatedUser)
     return proposal
 
 
-@router.post("/import-proposals/{proposal_id}/accept")
+@router.post("/import-proposals/{proposal_id}/accept", response_model=models.ImportProposalAcceptance,
+             response_model_exclude_unset=True, summary="Accept an import proposal")
 def accept_project_import_proposal(
     proposal_id: str,
     payload: AcceptProjectImportProposalRequest,
@@ -572,7 +593,9 @@ def accept_project_import_proposal(
         )
 
 
-@router.post("/import-sessions/{session_id}/proposals/bulk-accept")
+@router.post("/import-sessions/{session_id}/proposals/bulk-accept",
+             response_model=models.BulkImportAcceptance, response_model_exclude_unset=True,
+             summary="Accept several import proposals")
 def bulk_accept_project_import_proposals(
     session_id: str,
     payload: BulkAcceptRequest,
@@ -622,7 +645,8 @@ def bulk_accept_project_import_proposals(
     }
 
 
-@router.put("/import-sessions/{session_id}/proposals/drafts")
+@router.put("/import-sessions/{session_id}/proposals/drafts", response_model=models.SavedImportDrafts,
+             response_model_exclude_unset=True, summary="Save import proposal drafts")
 def save_import_proposal_drafts(
     session_id: str,
     payload: SaveImportDraftsRequest,
@@ -680,7 +704,9 @@ def _import_csv_row(proposal: dict[str, Any]) -> dict[str, str]:
     }
 
 
-@router.get("/import-sessions/{session_id}/proposals.csv")
+@router.get("/import-sessions/{session_id}/proposals.csv", response_class=Response,
+            summary="Export import proposals as CSV",
+            responses={200: {"content": {"text/csv": {}}, "description": "The import remediation CSV"}})
 def export_import_proposals_csv(
     session_id: str,
     user: AuthenticatedUser = Depends(require_catalog_reader),
@@ -704,7 +730,8 @@ def export_import_proposals_csv(
     )
 
 
-@router.post("/import-sessions/{session_id}/proposals.csv")
+@router.post("/import-sessions/{session_id}/proposals.csv", response_model=models.ImportedProposalCsv,
+             response_model_exclude_unset=True, summary="Apply an edited import CSV")
 async def import_proposals_csv(
     session_id: str,
     file: UploadFile = File(...),
@@ -763,7 +790,8 @@ async def import_proposals_csv(
     return {"saved": saved, "skipped_unknown_rows": unknown_rows}
 
 
-@router.get("/assets/search")
+@router.get("/assets/search", response_model=models.AssetSearchPage, response_model_exclude_unset=True,
+            summary="Search catalog assets")
 def search_catalog_assets(
     asset_type: str = Query(default="footprint"),
     q: str = Query(default=""),
@@ -775,7 +803,8 @@ def search_catalog_assets(
         return {"items": catalog_service.search_assets(asset_type=asset_type, query=q, limit=limit)}
 
 
-@router.post("/import-proposals/{proposal_id}/reject")
+@router.post("/import-proposals/{proposal_id}/reject", response_model=models.ImportProposal,
+             response_model_exclude_unset=True, summary="Reject an import proposal")
 def reject_project_import_proposal(
     proposal_id: str,
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -785,7 +814,8 @@ def reject_project_import_proposal(
         return catalog_service.reject_project_import_proposal(proposal_id)
 
 
-@router.post("/components")
+@router.post("/components", response_model=models.CatalogComponent, response_model_exclude_unset=True,
+             summary="Create a catalog component")
 def create_catalog_component(
     payload: CreateManualComponentRequest,
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -796,7 +826,8 @@ def create_catalog_component(
         return catalog_service.create_manual_component(actor=user.email, change_summary=change_summary, **data)
 
 
-@router.get("/components/{component_id}")
+@router.get("/components/{component_id}", response_model=models.CatalogComponent,
+            response_model_exclude_unset=True, summary="Read a catalog component")
 def get_catalog_component(
     component_id: str,
     representation: str = Query(default=""),
@@ -812,14 +843,16 @@ def get_catalog_component(
     return component
 
 
-@router.get("/components/{component_id}/revisions")
+@router.get("/components/{component_id}/revisions", response_model=models.ComponentRevisionPage,
+            response_model_exclude_unset=True, summary="List component revisions")
 def list_component_revisions(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return {"items": catalog_service.list_component_revisions(component_id)}
 
 
-@router.get("/components/{component_id}/revisions/compare")
+@router.get("/components/{component_id}/revisions/compare", response_model=models.RevisionComparison,
+            response_model_exclude_unset=True, summary="Compare component revisions")
 def compare_component_revisions(
     component_id: str,
     before: str = Query(...),
@@ -831,7 +864,8 @@ def compare_component_revisions(
         return catalog_service.compare_component_revisions(component_id, before, after)
 
 
-@router.get("/components/{component_id}/revisions/{revision_id}")
+@router.get("/components/{component_id}/revisions/{revision_id}", response_model=models.CatalogComponent,
+            response_model_exclude_unset=True, summary="Read a component revision")
 def get_component_revision(
     component_id: str,
     revision_id: str,
@@ -844,21 +878,24 @@ def get_component_revision(
     return revision
 
 
-@router.get("/components/{component_id}/audit")
+@router.get("/components/{component_id}/audit", response_model=models.AuditEventPage,
+            response_model_exclude_unset=True, summary="List component audit events")
 def list_component_audit(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return {"items": catalog_service.list_component_audit_events(component_id)}
 
 
-@router.get("/components/{component_id}/audit/verify")
+@router.get("/components/{component_id}/audit/verify", response_model=models.AuditVerification,
+            response_model_exclude_unset=True, summary="Verify the component audit chain")
 def verify_component_audit(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return catalog_service.verify_component_audit_chain(component_id)
 
 
-@router.get("/components/{component_id}/usage")
+@router.get("/components/{component_id}/usage", response_model=models.ComponentUsagePage,
+            response_model_exclude_unset=True, summary="List where a component is used")
 def list_component_usage(
     component_id: str,
     mode: str = Query(default="current", pattern="^(current|history)$"),
@@ -870,21 +907,24 @@ def list_component_usage(
         return {"items": [item for item in items if str(item.get("project_id") or "") in visible_projects]}
 
 
-@router.get("/components/{component_id}/reviews")
+@router.get("/components/{component_id}/reviews", response_model=models.ComponentReviewDecisionPage,
+            response_model_exclude_unset=True, summary="List component review decisions")
 def list_component_reviews(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return {"items": catalog_service.list_component_review_decisions(component_id)}
 
 
-@router.get("/components/{component_id}/releases")
+@router.get("/components/{component_id}/releases", response_model=models.ComponentReleaseRecordPage,
+            response_model_exclude_unset=True, summary="List component release records")
 def list_component_releases(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return {"items": catalog_service.list_component_release_records(component_id)}
 
 
-@router.get("/previews/{preview_id}")
+@router.get("/previews/{preview_id}", response_class=Response, summary="Read a catalog preview",
+            responses={200: {"content": {"image/svg+xml": {}}, "description": "The stored preview image"}})
 def get_catalog_preview(
     preview_id: str, request: Request, user: AuthenticatedUser = Depends(require_catalog_browser)
 ):
@@ -896,7 +936,11 @@ def get_catalog_preview(
     return preview_file_response(request, path, content_type, {"Cache-Control": "private, max-age=300"})
 
 
-@router.get("/assets/{asset_id}/content")
+@router.get("/assets/{asset_id}/content", response_class=FileResponse, summary="Read a catalog asset file",
+            responses={200: {"content": {
+                "application/x-kicad-symbol": {}, "application/x-kicad-footprint": {},
+                "model/step": {}, "application/x-spice": {}, "application/octet-stream": {},
+            }, "description": "The stored asset bytes"}})
 def get_catalog_asset_content(asset_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     """Serve an asset's stored bytes so the browser can render it.
 
@@ -926,7 +970,8 @@ def _revision(request: Request, component_id: str, *, required: bool = True) -> 
     return preconditions.if_match(request, "component", component_id, required=required) or ""
 
 
-@router.patch("/components/{component_id}")
+@router.patch("/components/{component_id}", response_model=models.CatalogComponent,
+              response_model_exclude_unset=True, summary="Update a catalog component")
 def update_catalog_component(
     component_id: str,
     payload: UpdateComponentMetadataRequest,
@@ -954,7 +999,9 @@ def update_catalog_component(
     return component
 
 
-@router.post("/components/{component_id}/representations", status_code=201)
+@router.post("/components/{component_id}/representations", status_code=201,
+             response_model=models.CatalogComponent, response_model_exclude_unset=True,
+             summary="Add a component representation")
 def create_component_representation(
     component_id: str,
     payload: CreateRepresentationRequest,
@@ -977,7 +1024,9 @@ def create_component_representation(
         )
 
 
-@router.patch("/components/{component_id}/representations/{representation_id}")
+@router.patch("/components/{component_id}/representations/{representation_id}",
+              response_model=models.CatalogComponent, response_model_exclude_unset=True,
+              summary="Update a component representation")
 def update_component_representation(
     component_id: str,
     representation_id: str,
@@ -1001,7 +1050,9 @@ def update_component_representation(
         )
 
 
-@router.delete("/components/{component_id}/representations/{representation_id}")
+@router.delete("/components/{component_id}/representations/{representation_id}",
+               response_model=models.CatalogComponent, response_model_exclude_unset=True,
+               summary="Delete a component representation")
 def delete_component_representation(
     component_id: str,
     representation_id: str,
@@ -1017,7 +1068,8 @@ def delete_component_representation(
         )
 
 
-@router.post("/components/{component_id}/symbol-import")
+@router.post("/components/{component_id}/symbol-import", response_model=models.SymbolImportResult,
+             response_model_exclude_unset=True, summary="Import a symbol for a component")
 async def import_symbol_library(
     component_id: str,
     file: UploadFile = File(...),
@@ -1044,7 +1096,8 @@ async def import_symbol_library(
         )
 
 
-@router.post("/components/{component_id}/footprint-import")
+@router.post("/components/{component_id}/footprint-import", response_model=models.FootprintImportResult,
+             response_model_exclude_unset=True, summary="Import a footprint for a component")
 async def import_footprint(
     component_id: str,
     file: UploadFile = File(...),
@@ -1070,7 +1123,8 @@ async def import_footprint(
         )
 
 
-@router.post("/components/{component_id}/assets/{asset_type}")
+@router.post("/components/{component_id}/assets/{asset_type}", response_model=models.ComponentMutation,
+             response_model_exclude_unset=True, summary="Attach an auxiliary asset to a component")
 async def import_auxiliary_asset(
     component_id: str,
     asset_type: str,
@@ -1094,7 +1148,8 @@ async def import_auxiliary_asset(
         )
 
 
-@router.delete("/components/{component_id}/assets/{asset_type}")
+@router.delete("/components/{component_id}/assets/{asset_type}", response_model=models.ComponentMutation,
+               response_model_exclude_unset=True, summary="Detach an auxiliary asset from a component")
 def detach_component_asset(
     component_id: str,
     asset_type: str,
@@ -1104,7 +1159,8 @@ def detach_component_asset(
         return catalog_service.detach_asset(component_id, asset_type, actor=user.email)
 
 
-@router.delete("/components/{component_id}/assets/id/{asset_id}")
+@router.delete("/components/{component_id}/assets/id/{asset_id}", response_model=models.ComponentMutation,
+               response_model_exclude_unset=True, summary="Detach an asset from a component by id")
 def detach_component_asset_by_id(
     component_id: str,
     asset_id: str,
@@ -1120,14 +1176,16 @@ def detach_component_asset_by_id(
         )
 
 
-@router.delete("/components/{component_id}")
+@router.delete("/components/{component_id}", response_model=models.ComponentDeleteResult,
+               response_model_exclude_unset=True, summary="Delete a catalog component")
 def delete_catalog_component(component_id: str, user: AuthenticatedUser = Depends(require_catalog_writer)):
     if not catalog_service.delete_component(component_id, actor=user.email):
         raise HTTPException(status_code=404, detail="Component not found")
     return {"ok": True}
 
 
-@router.post("/components/{component_id}/release")
+@router.post("/components/{component_id}/release", response_model=models.CatalogComponent,
+             response_model_exclude_unset=True, summary="Transition a component's release status")
 def transition_release_status(
     component_id: str,
     payload: ReleaseStatusRequest,
@@ -1145,6 +1203,7 @@ def transition_release_status(
         )
         if not _can_transition_workflow(user, current_stage, next_stage):
             raise HTTPException(status_code=403, detail="Catalog workflow transition not allowed for this role")
+        policy.authorize(user, workflow_policy.transition_action(next_stage), check_role=False)
         override_reason = payload.self_approval_override_reason.strip()
         if override_reason and not policy.role_allows(user.role, "catalog_admin"):
             raise HTTPException(status_code=403, detail="Only administrators may override two-person approval")
@@ -1163,7 +1222,8 @@ def transition_release_status(
     return component
 
 
-@router.post("/components/{component_id}/previews/regenerate")
+@router.post("/components/{component_id}/previews/regenerate", response_model=models.CatalogComponent,
+             response_model_exclude_unset=True, summary="Regenerate a component's previews")
 def regenerate_component_previews(component_id: str, user: AuthenticatedUser = Depends(require_catalog_writer)):
     with value_errors_as(400):
         component = catalog_service.regenerate_component_previews(component_id, actor=user.email)
@@ -1172,7 +1232,8 @@ def regenerate_component_previews(component_id: str, user: AuthenticatedUser = D
     return component
 
 
-@router.post("/components/{component_id}/validate")
+@router.post("/components/{component_id}/validate", response_model=models.CatalogJobQueued,
+             response_model_exclude_unset=True, summary="Validate a component with KLC")
 def validate_component_klc(component_id: str, user: AuthenticatedUser = Depends(require_catalog_writer)):
     job = _enqueue_catalog_job(
         "catalog_validation",
@@ -1182,20 +1243,23 @@ def validate_component_klc(component_id: str, user: AuthenticatedUser = Depends(
     return {"job_id": job["id"], "status": job["status"]}
 
 
-@router.get("/components/{component_id}/validation")
+@router.get("/components/{component_id}/validation", response_model=models.ComponentValidation,
+            response_model_exclude_unset=True, summary="Read a component's validation")
 def get_component_validation(component_id: str, user: AuthenticatedUser = Depends(require_catalog_browser)):
     _ = user
     with value_errors_as(404):
         return catalog_service.get_component_validation(component_id)
 
 
-@router.post("/validation/run")
+@router.post("/validation/run", response_model=models.CatalogJobQueued, response_model_exclude_unset=True,
+             summary="Validate the catalog")
 def validate_catalog(user: AuthenticatedUser = Depends(require_catalog_writer)):
     job = _enqueue_catalog_job("catalog_validation", {"component_ids": None}, actor=user.email)
     return {"job_id": job["id"], "status": job["status"]}
 
 
-@router.get("/validation/jobs/{job_id}")
+@router.get("/validation/jobs/{job_id}", response_model=models.CatalogJob, response_model_exclude_unset=True,
+            summary="Read a validation job")
 def get_validation_job(job_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     _ = user
     job = catalog_jobs.get(job_id, "catalog_validation")
@@ -1204,7 +1268,8 @@ def get_validation_job(job_id: str, user: AuthenticatedUser = Depends(require_ca
     return job
 
 
-@router.get("/validation/runs/{run_id}")
+@router.get("/validation/runs/{run_id}", response_model=models.ValidationRun,
+            response_model_exclude_unset=True, summary="Read a validation run")
 def get_validation_run(run_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     _ = user
     run = catalog_service.get_validation_run(run_id)
@@ -1213,7 +1278,11 @@ def get_validation_run(run_id: str, user: AuthenticatedUser = Depends(require_ca
     return run
 
 
-@router.get("/validation/runs/{run_id}/{report_name}")
+@router.get("/validation/runs/{run_id}/{report_name}", response_class=FileResponse,
+            summary="Read a validation report",
+            responses={200: {"content": {
+                "application/json": {}, "application/xml": {}, "text/plain": {},
+            }, "description": "The stored validation report"}})
 def get_validation_report(run_id: str, report_name: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     _ = user
     path = catalog_service.validation_report_path(run_id, report_name)
@@ -1223,13 +1292,15 @@ def get_validation_report(run_id: str, report_name: str, user: AuthenticatedUser
     return FileResponse(path, media_type=media_type, filename=path.name)
 
 
-@router.post("/previews/generate-missing")
+@router.post("/previews/generate-missing", response_model=models.CatalogJobQueued,
+             response_model_exclude_unset=True, summary="Generate missing component previews")
 def generate_missing_previews(user: AuthenticatedUser = Depends(require_catalog_writer)):
     job = _enqueue_catalog_job("catalog_preview_generation", {}, actor=user.email)
     return {"job_id": job["id"], "status": job["status"]}
 
 
-@router.get("/previews/jobs/{job_id}")
+@router.get("/previews/jobs/{job_id}", response_model=models.CatalogJob, response_model_exclude_unset=True,
+            summary="Read a preview generation job")
 def get_preview_job(job_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     _ = user
     job = catalog_jobs.get(job_id, "catalog_preview_generation")
@@ -1238,7 +1309,8 @@ def get_preview_job(job_id: str, user: AuthenticatedUser = Depends(require_catal
     return job
 
 
-@router.post("/artifacts/maintenance", status_code=202)
+@router.post("/artifacts/maintenance", status_code=202, response_model=models.CatalogJobQueued,
+             response_model_exclude_unset=True, summary="Run artifact maintenance")
 def run_artifact_maintenance(user: AuthenticatedUser = Depends(require_catalog_admin)):
     job = _enqueue_catalog_job("artifact_maintenance", {}, actor=user.email)
     return {"job_id": job["id"], "status": job["status"]}
@@ -1254,7 +1326,8 @@ def _metadata_batch_for_user(batch_id: str, user: AuthenticatedUser) -> dict[str
     return batch
 
 
-@router.get("/metadata/fields")
+@router.get("/metadata/fields", response_model=models.MetadataFieldPage, response_model_exclude_unset=True,
+            summary="List metadata fields")
 def list_metadata_fields(
     include_archived: bool = Query(default=False),
     user: AuthenticatedUser = Depends(require_catalog_browser),
@@ -1263,36 +1336,42 @@ def list_metadata_fields(
     return {"schema": "prism.component_metadata_a1", "items": catalog_service.list_metadata_fields(include_archived=include_archived)}
 
 
-@router.post("/metadata/fields", status_code=201)
+@router.post("/metadata/fields", status_code=201, response_model=models.MetadataField,
+             response_model_exclude_unset=True, summary="Create a metadata field")
 def create_metadata_field(payload: MetadataFieldRequest, user: AuthenticatedUser = Depends(require_catalog_admin)):
     with value_errors_as(400):
         return catalog_service.create_metadata_field(payload.model_dump(), actor=user.email)
 
 
-@router.patch("/metadata/fields/{field_id}")
+@router.patch("/metadata/fields/{field_id}", response_model=models.MetadataField,
+              response_model_exclude_unset=True, summary="Update a metadata field")
 def update_metadata_field(field_id: str, payload: MetadataFieldRequest, user: AuthenticatedUser = Depends(require_catalog_admin)):
     with value_errors_as(400):
         return catalog_service.update_metadata_field(field_id, payload.model_dump(exclude_unset=True), actor=user.email)
 
 
-@router.post("/metadata/fields/{field_id}/archive")
+@router.post("/metadata/fields/{field_id}/archive", response_model=models.MetadataField,
+             response_model_exclude_unset=True, summary="Archive a metadata field")
 def archive_metadata_field(field_id: str, user: AuthenticatedUser = Depends(require_catalog_admin)):
     with value_errors_as(400):
         return catalog_service.set_metadata_field_archived(field_id, True, actor=user.email)
 
 
-@router.post("/metadata/fields/{field_id}/restore")
+@router.post("/metadata/fields/{field_id}/restore", response_model=models.MetadataField,
+             response_model_exclude_unset=True, summary="Restore a metadata field")
 def restore_metadata_field(field_id: str, user: AuthenticatedUser = Depends(require_catalog_admin)):
     with value_errors_as(400):
         return catalog_service.set_metadata_field_archived(field_id, False, actor=user.email)
 
 
-@router.get("/metadata/grid-preferences")
+@router.get("/metadata/grid-preferences", response_model=models.MetadataGridPreferences,
+            response_model_exclude_unset=True, summary="Read metadata grid preferences")
 def get_metadata_grid_preferences(user: AuthenticatedUser = Depends(require_catalog_browser)):
     return catalog_service.get_metadata_grid_preferences(user.email)
 
 
-@router.put("/metadata/grid-preferences")
+@router.put("/metadata/grid-preferences", response_model=models.MetadataGridPreferences,
+            response_model_exclude_unset=True, summary="Save metadata grid preferences")
 def save_metadata_grid_preferences(
     payload: MetadataGridPreferencesRequest,
     user: AuthenticatedUser = Depends(require_catalog_browser),
@@ -1300,7 +1379,8 @@ def save_metadata_grid_preferences(
     return catalog_service.save_metadata_grid_preferences(user.email, payload.model_dump())
 
 
-@router.get("/metadata/grid")
+@router.get("/metadata/grid", response_model=models.MetadataGridPage, response_model_exclude_unset=True,
+            summary="Read the metadata grid")
 def metadata_grid(
     q: str = Query(default=""),
     availability_state: str | None = Query(default=None),
@@ -1323,7 +1403,8 @@ def metadata_grid(
         )
 
 
-@router.post("/metadata/batches", status_code=201)
+@router.post("/metadata/batches", status_code=201, response_model=models.MetadataBatch,
+             response_model_exclude_unset=True, summary="Stage a metadata batch")
 def create_metadata_batch(payload: CreateMetadataBatchRequest, user: AuthenticatedUser = Depends(require_catalog_writer)):
     with value_errors_as(400):
         return catalog_service.stage_metadata_batch(
@@ -1332,19 +1413,22 @@ def create_metadata_batch(payload: CreateMetadataBatchRequest, user: Authenticat
         )
 
 
-@router.get("/metadata/batches/{batch_id}")
+@router.get("/metadata/batches/{batch_id}", response_model=models.MetadataBatch,
+            response_model_exclude_unset=True, summary="Read a metadata batch")
 def get_metadata_batch(batch_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     return _metadata_batch_for_user(batch_id, user)
 
 
-@router.post("/metadata/batches/{batch_id}/approve-fields")
+@router.post("/metadata/batches/{batch_id}/approve-fields", response_model=models.MetadataBatch,
+             response_model_exclude_unset=True, summary="Approve a batch's proposed fields")
 def approve_metadata_batch_fields(batch_id: str, user: AuthenticatedUser = Depends(require_catalog_admin)):
     _metadata_batch_for_user(batch_id, user)
     with value_errors_as(400):
         return catalog_service.approve_metadata_batch_fields(batch_id, actor=user.email)
 
 
-@router.post("/metadata/batches/{batch_id}/apply", status_code=202)
+@router.post("/metadata/batches/{batch_id}/apply", status_code=202, response_model=models.MetadataBatchStarted,
+             response_model_exclude_unset=True, summary="Apply a metadata batch")
 def apply_metadata_batch(
     batch_id: str,
     payload: ApplyMetadataBatchRequest,
@@ -1363,7 +1447,8 @@ def apply_metadata_batch(
     return {"batch_id": batch_id, "job_id": job["id"], "status": job["status"]}
 
 
-@router.get("/metadata/jobs/{job_id}")
+@router.get("/metadata/jobs/{job_id}", response_model=models.CatalogJob, response_model_exclude_unset=True,
+            summary="Read a metadata job")
 def get_metadata_job(job_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     job = catalog_jobs.get(job_id, "catalog_metadata_batch")
     if not job:
@@ -1372,7 +1457,8 @@ def get_metadata_job(job_id: str, user: AuthenticatedUser = Depends(require_cata
     return job
 
 
-@router.get("/metadata/export.csv")
+@router.get("/metadata/export.csv", response_class=StreamingResponse, summary="Export component metadata as CSV",
+            responses={200: {"content": {"text/csv": {}}, "description": "The metadata CSV export"}})
 def export_metadata_csv(
     field: list[str] | None = Query(default=None),
     user: AuthenticatedUser = Depends(require_catalog_browser),
@@ -1390,7 +1476,8 @@ def export_metadata_csv(
         )
 
 
-@router.post("/metadata/import-csv/preview", status_code=201)
+@router.post("/metadata/import-csv/preview", status_code=201, response_model=models.MetadataCsvPreview,
+             response_model_exclude_unset=True, summary="Preview a metadata CSV import")
 async def preview_metadata_csv(
     file: UploadFile = File(...),
     change_summary: str = Form(default="Import component metadata from CSV"),
@@ -1406,7 +1493,9 @@ async def preview_metadata_csv(
         await file.close()
 
 
-@router.get("/metadata/batches/{batch_id}/report.csv")
+@router.get("/metadata/batches/{batch_id}/report.csv", response_class=Response,
+            summary="Export a metadata batch report",
+            responses={200: {"content": {"text/csv": {}}, "description": "The batch result CSV"}})
 def metadata_batch_report(batch_id: str, user: AuthenticatedUser = Depends(require_catalog_reader)):
     batch = _metadata_batch_for_user(batch_id, user)
     output = ["component_id,mpn,status,error"]
@@ -1419,7 +1508,8 @@ def metadata_batch_report(batch_id: str, user: AuthenticatedUser = Depends(requi
     )
 
 
-@router.post("/exports/kicad-dbl")
+@router.post("/exports/kicad-dbl", response_model=models.KicadDblBundle, response_model_exclude_unset=True,
+             summary="Export a KiCad database library bundle")
 def export_kicad_dbl_bundle(user: AuthenticatedUser = Depends(require_catalog_writer)):
     _ = user
     with value_errors_as(400):
@@ -1428,7 +1518,8 @@ def export_kicad_dbl_bundle(user: AuthenticatedUser = Depends(require_catalog_wr
 
 # ─── Phase 2: CSV Import Routes ──────────────────────────────────────────────
 
-@router.get("/inventory/export.csv")
+@router.get("/inventory/export.csv", response_class=Response, summary="Export the component inventory as CSV",
+            responses={200: {"content": {"text/csv": {}}, "description": "The inventory CSV export"}})
 def export_inventory_csv(user: AuthenticatedUser = Depends(require_catalog_reader)):
     _ = user
     return Response(
@@ -1438,7 +1529,8 @@ def export_inventory_csv(user: AuthenticatedUser = Depends(require_catalog_reade
     )
 
 
-@router.post("/inventory/sync-csv")
+@router.post("/inventory/sync-csv", response_model=models.InventoryImportResult,
+             response_model_exclude_unset=True, summary="Import inventory from CSV")
 async def import_inventory_csv(
     file: UploadFile = File(...),
     user: AuthenticatedUser = Depends(require_catalog_writer),
@@ -1452,7 +1544,8 @@ async def import_inventory_csv(
 
 # ─── Phase 2: Asset Browsing/Linking Routes ──────────────────────────────────
 
-@router.get("/assets/browse")
+@router.get("/assets/browse", response_model=models.AssetBrowseResult, response_model_exclude_unset=True,
+            summary="Browse stored library assets")
 def browse_library_assets(
     asset_type: str = Query(...),
     q: str = Query("", max_length=200),
@@ -1471,7 +1564,8 @@ class LinkAssetRequest(BaseModel):
     target_name: str = ""
     counterpart_asset_id: str = ""
 
-@router.post("/components/{component_id}/assets/{asset_type}/link")
+@router.post("/components/{component_id}/assets/{asset_type}/link", response_model=models.ComponentMutation,
+             response_model_exclude_unset=True, summary="Link a stored library asset to a component")
 def link_library_asset(
     component_id: str,
     asset_type: str,

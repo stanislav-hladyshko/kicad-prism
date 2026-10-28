@@ -1,13 +1,16 @@
 //! Process guards (cli-spec.md §5.2.5, §7.3, §7.4): the counting allocator
 //! that enforces `max-memory-bytes`, the wall-clock watchdog for
-//! `timeout-ms`, the SIGTERM/SIGINT/SIGHUP handlers, the Linux `RLIMIT_AS`
-//! backstop, and the raw writes and `_exit` they end with.
+//! `timeout-ms`, the SIGTERM/SIGINT/SIGHUP handlers (console control events
+//! on Windows), the Linux `RLIMIT_AS` backstop (a job object's process memory
+//! limit on Windows, where a kill-on-close job object also ends `git`'s tree), and the raw writes
+//! and `_exit` they end with.
 //!
-//! This is the only module that uses `unsafe`, each block for one libc call
-//! or for the `GlobalAlloc` contract.
+//! This is the only module that uses `unsafe`, each block for one libc or
+//! Win32 call or for the `GlobalAlloc` contract.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::path::PathBuf;
+use std::process::Child;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -16,7 +19,9 @@ static LIVE: AtomicUsize = AtomicUsize::new(0);
 static LIMIT: AtomicUsize = AtomicUsize::new(usize::MAX);
 static OUT_OF_MEMORY: OnceLock<(Vec<u8>, Vec<u8>)> = OnceLock::new();
 static SIGNAL: AtomicI32 = AtomicI32::new(0);
-static CHILD_GROUP: AtomicI32 = AtomicI32::new(0);
+/// The process group of a running `git`. Unix only: Windows confines children with a job object.
+#[cfg(unix)]
+static CHILD_GROUP: AtomicUsize = AtomicUsize::new(0);
 static STDOUT_TAKEN: AtomicBool = AtomicBool::new(false);
 static TEMP_FILE: Mutex<Option<PathBuf>> = Mutex::new(None);
 
@@ -94,8 +99,9 @@ fn release(bytes: usize) {
     }
 }
 
-/// Write `bytes` to file descriptor `fd` with `write(2)`, retrying partial
-/// writes; allocates nothing.
+/// Write `bytes` to file descriptor `fd` (1 or 2) with `write(2)`, retrying
+/// partial writes; allocates nothing.
+#[cfg(unix)]
 pub fn raw_write(fd: i32, mut bytes: &[u8]) -> bool {
     while !bytes.is_empty() {
         // SAFETY: the pointer and length describe a live slice.
@@ -111,10 +117,57 @@ pub fn raw_write(fd: i32, mut bytes: &[u8]) -> bool {
     true
 }
 
+/// Write `bytes` to standard output (1) or error (2) with `WriteFile`,
+/// retrying partial writes; allocates nothing.
+#[cfg(windows)]
+pub fn raw_write(fd: i32, mut bytes: &[u8]) -> bool {
+    use windows_sys::Win32::Storage::FileSystem::WriteFile;
+    use windows_sys::Win32::System::Console::{GetStdHandle, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
+    // SAFETY: `GetStdHandle` takes a constant and returns a handle or null.
+    let handle = unsafe {
+        GetStdHandle(if fd == 2 {
+            STD_ERROR_HANDLE
+        } else {
+            STD_OUTPUT_HANDLE
+        })
+    };
+    if handle.is_null() {
+        return false;
+    }
+    while !bytes.is_empty() {
+        let chunk = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+        let mut written = 0u32;
+        // SAFETY: the pointer and length describe a live slice, `written` is
+        // a valid out-parameter, and no OVERLAPPED is used.
+        let done = unsafe {
+            WriteFile(
+                handle,
+                bytes.as_ptr(),
+                chunk,
+                &raw mut written,
+                std::ptr::null_mut(),
+            )
+        };
+        if done == 0 || written == 0 {
+            return false;
+        }
+        bytes = &bytes[written as usize..];
+    }
+    true
+}
+
 /// End the process at once with `code`, running no destructor or handler.
+#[cfg(unix)]
 pub fn exit_now(code: i32) -> ! {
     // SAFETY: `_exit` takes any status and never returns.
     unsafe { libc::_exit(code) }
+}
+
+/// End the process at once with `code`, running no destructor or handler.
+#[cfg(windows)]
+pub fn exit_now(code: i32) -> ! {
+    // SAFETY: `ExitProcess` takes any status and never returns.
+    unsafe { windows_sys::Win32::System::Threading::ExitProcess(code.cast_unsigned()) }
 }
 
 fn out_of_memory() -> ! {
@@ -204,7 +257,44 @@ fn address_space_backstop(limit: u64, threads: u64) {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(windows)]
+fn address_space_backstop(limit: u64, threads: u64) {
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_PROCESS_MEMORY,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let margin = (1u64 << 30) + (128u64 << 20) * threads.max(1);
+    let bound = usize::try_from(limit.saturating_add(margin)).unwrap_or(usize::MAX);
+    // SAFETY: an all-zero limit structure is valid; the fields set below are
+    // the ones the flag names.
+    let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+    info.ProcessMemoryLimit = bound;
+    // SAFETY: null attributes and name are allowed; the handle is kept open
+    // for the life of the process, which is what holds the limit.
+    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+    if job.is_null() {
+        return;
+    }
+    // SAFETY: `info` is a live structure of the size passed. Failure (the
+    // process already belongs to a job that forbids nesting) leaves only the
+    // counting allocator, which is the primary limit.
+    unsafe {
+        if SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            (&raw const info).cast(),
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) != 0
+        {
+            AssignProcessToJobObject(job, GetCurrentProcess());
+        }
+    }
+}
+
+#[cfg(all(not(target_os = "linux"), not(windows)))]
 fn address_space_backstop(_limit: u64, _threads: u64) {}
 
 /// Claim stdout for the one document of this invocation. Returns false when
@@ -229,26 +319,45 @@ pub fn remove_temp_file() {
     }
 }
 
-/// Remember the process group of a running `git`, for the watchdog.
-pub fn set_child_group(group: i32) {
-    CHILD_GROUP.store(group, Ordering::SeqCst);
+/// Remember a running `git`, for the watchdog to kill: on Unix its process group. On Windows
+/// nothing is kept: this process is in a kill-on-close job object (see
+/// [`install_signal_handlers`]) that `git` and everything it starts inherit at creation, and
+/// the process exits right after the watchdog fires, which ends the whole tree.
+pub fn track_child(child: &Child) {
+    #[cfg(unix)]
+    CHILD_GROUP.store(child.id() as usize, Ordering::SeqCst);
+    #[cfg(windows)]
+    let _ = child;
 }
 
+/// Forget the tracked `git` once it has exited.
+pub fn untrack_child() {
+    #[cfg(unix)]
+    CHILD_GROUP.store(0, Ordering::SeqCst);
+}
+
+#[cfg(unix)]
 fn kill_child_group() {
     let group = CHILD_GROUP.load(Ordering::SeqCst);
-    if group > 0 {
+    if group != 0 {
         // SAFETY: `kill` with a negative pid signals that process group.
         unsafe {
-            libc::kill(-group, libc::SIGKILL);
+            libc::kill(-(group as i32), libc::SIGKILL);
         }
     }
 }
 
+/// Windows ends a running `git` by exiting: the job object kills the tree.
+#[cfg(windows)]
+fn kill_child_group() {}
+
+#[cfg(unix)]
 extern "C" fn on_signal(signal: libc::c_int) {
     SIGNAL.store(signal, Ordering::SeqCst);
 }
 
 /// Install the SIGTERM, SIGINT and SIGHUP handlers.
+#[cfg(unix)]
 pub fn install_signal_handlers() {
     let handler = on_signal as extern "C" fn(libc::c_int) as libc::sighandler_t;
     for signal in [libc::SIGTERM, libc::SIGINT, libc::SIGHUP] {
@@ -256,6 +365,65 @@ pub fn install_signal_handlers() {
         unsafe {
             libc::signal(signal, handler);
         }
+    }
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn on_console_event(event: u32) -> i32 {
+    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    // Ctrl+C and break are SIGINT (2); close, logoff and shutdown are SIGHUP (1).
+    let signal = if event == CTRL_C_EVENT || event == CTRL_BREAK_EVENT {
+        2
+    } else {
+        1
+    };
+    SIGNAL.store(signal, Ordering::SeqCst);
+    1
+}
+
+/// Put this process in a job object that kills everything in it when its last handle closes, which
+/// is when this process exits. `git` and its children are created inside it, so no child can outlive
+/// a timeout or a signal, and there is no handle to close or reuse while the watchdog runs.
+#[cfg(windows)]
+fn join_kill_on_exit_job() {
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    // SAFETY: an all-zero limit structure is valid; the field set is the one the flag names.
+    let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { std::mem::zeroed() };
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    // SAFETY: null attributes and name are allowed. The handle is never closed: the job must
+    // outlive every use of it, and process exit closes it.
+    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+    if job.is_null() {
+        return;
+    }
+    // SAFETY: `info` is a live structure of the size passed. A failure (the process is already
+    // in a job that forbids nesting) leaves `git` unconfined, as on a platform without jobs.
+    unsafe {
+        if SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            (&raw const info).cast(),
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) != 0
+        {
+            AssignProcessToJobObject(job, GetCurrentProcess());
+        }
+    }
+}
+
+/// Handle Ctrl+C, Ctrl+Break and console close like the Unix signals, and confine child
+/// processes to this one's lifetime.
+#[cfg(windows)]
+pub fn install_signal_handlers() {
+    join_kill_on_exit_job();
+    // SAFETY: the handler only stores into an atomic.
+    unsafe {
+        windows_sys::Win32::System::Console::SetConsoleCtrlHandler(Some(on_console_event), 1);
     }
 }
 
@@ -288,4 +456,24 @@ pub fn start_watchdog(started: Instant, timeout: Duration, stdout: Vec<u8>, stde
         });
     // Without a watchdog the backend's outer timeout still applies.
     drop(spawned);
+}
+
+/// Volume serial number and file index of the file at `path`, which tell two
+/// names for one file apart from two files.
+#[cfg(windows)]
+pub fn file_identity(path: &std::path::Path) -> Option<(u32, u32, u32)> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+    let file = std::fs::File::open(path).ok()?;
+    // SAFETY: an all-zero information structure is valid.
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: the handle is open for the call and `info` is a valid out-parameter.
+    let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), &raw mut info) };
+    (ok != 0).then_some((
+        info.dwVolumeSerialNumber,
+        info.nFileIndexHigh,
+        info.nFileIndexLow,
+    ))
 }

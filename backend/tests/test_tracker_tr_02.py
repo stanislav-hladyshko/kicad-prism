@@ -67,6 +67,25 @@ class CommentWriterDependencyTests(unittest.TestCase):
             cp.require_write_scope(service_client(["api:read"]))
         self.assertEqual(ctx2.exception.code, "scope_required")
 
+    def test_comment_write_scope_is_comments_write_with_api_write_implying_it(self) -> None:
+        for scopes in (["comments:write"], ["api:write"], ["*"]):
+            with self.subTest(scopes=scopes):
+                user = service_client(scopes)
+                self.assertIs(asyncio.run(require_comment_writer(user)), user)
+                cp.require_write_scope(user)
+        cp.require_write_scope(session("viewer"))
+
+        for scopes in (["api:read"], ["design:write"]):
+            with self.subTest(scopes=scopes):
+                with self.assertRaises(cp.CommentPermissionError) as ctx:
+                    cp.require_write_scope(service_client(scopes))
+                self.assertEqual(
+                    (ctx.exception.code, ctx.exception.detail),
+                    ("scope_required", "comments:write scope required"),
+                )
+                with self.assertRaises(HTTPException):
+                    asyncio.run(require_comment_writer(service_client(scopes)))
+
 
 class ActorIdentityTests(unittest.TestCase):
     def test_session_user_id_is_the_stable_key(self) -> None:
@@ -195,6 +214,31 @@ class OwnershipAndActionTests(unittest.TestCase):
         self.assertFalse(cp.allowed(cp.CommentAction.SHARE, actor))
         # Promote still follows publication; an admin-role service may promote.
         cp.authorize(cp.CommentAction.PROMOTE, actor)
+
+
+class PersonOnlyResolveTests(unittest.TestCase):
+    def token_actor(self, auth_type: str) -> cp.ActorIdentity:
+        return cp.ActorIdentity(
+            actor_id=f"{auth_type}:admin", actor_kind=cp.ACTOR_KIND_USER,
+            display_name="Admin", role="admin", auth_type=auth_type,
+        )
+
+    def test_tokens_cannot_resolve_even_as_admins(self) -> None:
+        for auth_type in ("agent", "service_client", "external_service", "mcp"):
+            actor = self.token_actor(auth_type)
+            with self.subTest(auth_type=auth_type):
+                with self.assertRaises(cp.CommentPermissionError) as ctx:
+                    cp.authorize(cp.CommentAction.RESOLVE, actor)
+                self.assertEqual(
+                    (ctx.exception.status_code, ctx.exception.code),
+                    (403, "person_required"),
+                )
+                self.assertFalse(cp.capabilities(actor, authored("someone"), linked=True)["canResolve"])
+
+    def test_a_session_designer_resolves(self) -> None:
+        actor = cp.resolve_actor(session("designer", user_id="u_designer"))
+        cp.authorize(cp.CommentAction.RESOLVE, actor)
+        self.assertTrue(cp.capabilities(actor, authored("someone"))["canResolve"])
 
 
 if __name__ == "__main__":

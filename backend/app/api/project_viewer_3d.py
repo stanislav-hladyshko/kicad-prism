@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
+from app.api import project_viewer_3d_models as models
 from app.api._helpers import get_project_for_role_or_404
 from app.core.errors import caller_errors, value_errors_as
 from app.core.security import AuthenticatedUser, require_designer, require_viewer
@@ -32,7 +33,12 @@ def _bundle_errors():
     return caller_errors((LookupError, 404), (CliUnavailable, 503))
 
 
-@router.get("/{project_id}/webgpu-3d/status")
+@router.get(
+    "/{project_id}/webgpu-3d/status",
+    response_model=models.WebGpu3dStatus,
+    response_model_exclude_unset=True,
+    summary="The 3D tab's status for a revision, queueing its design bundle",
+)
 async def get_webgpu_3d_status(
     project_id: str,
     commit: Optional[str] = Query(default=None),
@@ -48,7 +54,12 @@ class WebGpu3dGenerateRequest(BaseModel):
     force: bool = False
 
 
-@router.post("/{project_id}/webgpu-3d/generate", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/webgpu-3d/generate",
+    response_model=models.WebGpu3dGenerated,
+    dependencies=[Depends(require_designer)],
+    summary="Queue the revision's design bundle, optionally rebuilding it",
+)
 async def generate_webgpu_3d(
     project_id: str,
     request: WebGpu3dGenerateRequest,
@@ -77,7 +88,11 @@ def _generate_bundle(project_id: str, request: WebGpu3dGenerateRequest, requeste
     return {"job_id": regenerate.regenerate(project_id, commit=request.commit, requested_by=requested_by).job_id}
 
 
-@router.get("/{project_id}/webgpu-3d/analytic")
+@router.get(
+    "/{project_id}/webgpu-3d/analytic",
+    response_model=models.WebGpu3dAnalytic,
+    summary="The viewer's analytic bundle document for a revision",
+)
 async def get_webgpu_3d_analytic(
     project_id: str,
     commit: Optional[str] = Query(default=None),
@@ -94,7 +109,21 @@ async def get_webgpu_3d_analytic(
     return JSONResponse(document, headers={"Cache-Control": "no-store"})
 
 
-@router.get("/{project_id}/webgpu-3d/assets/{source_revision_key}/{generator_build}/{asset_path:path}")
+@router.get(
+    "/{project_id}/webgpu-3d/assets/{source_revision_key}/{generator_build}/{asset_path:path}",
+    response_class=Response,
+    summary="Serve one design-bundle member by revision key and generator",
+    responses={
+        200: {
+            "content": {
+                "application/octet-stream": {},
+                "application/json": {},
+                "model/gltf-binary": {},
+            },
+            "description": "The member's stored bytes.",
+        }
+    },
+)
 async def get_webgpu_3d_asset(
     project_id: str,
     source_revision_key: str,

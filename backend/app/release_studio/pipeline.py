@@ -36,6 +36,7 @@ from app.release_studio.vendors import (
     resolve_vendor_ids,
 )
 from app.services.kicad_tools import KicadTool, KicadTools
+from app.services.tree_removal import remove_tree
 
 if TYPE_CHECKING:
     from app.release_studio.bundle_design import BundleDesign
@@ -503,7 +504,7 @@ def _board_project(design: Any, board: Path | None, root: Path) -> Path | None:
         return None
     try:
         sources = design.sources_dir()
-        shutil.rmtree(root, ignore_errors=True)
+        remove_tree(root, ignore_errors=True)
         shutil.copytree(sources, root, copy_function=_link_or_copy)
         target = root / board_file
         # A hard link shares the extraction's bytes: unlink before writing.

@@ -229,6 +229,14 @@ class VendorPackTests(unittest.TestCase):
             readiness["missing_requirements"],
             ["drill", "bom.csv", "cpl.csv", "bom.xlsx", "cpl.xlsx"],
         )
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.VendorReadiness.model_validate(readiness).model_dump(mode="json"),
+            jsonable_encoder(readiness),
+        )
         with self.assertRaisesRegex(VendorPackError, "missing drill, bom.csv, cpl.csv, bom.xlsx, cpl.xlsx"):
             build_vendor_pack("jlcpcb", dossier_bytes=dossier)
 

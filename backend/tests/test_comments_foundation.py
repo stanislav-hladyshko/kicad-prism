@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from app.api import comments as comments_api
 from app.core.security import AuthenticatedUser, require_comment_writer
+from app.services import event_log
 from app.services.comment_permissions import (
     ActorIdentity,
     AuthoredObject,
@@ -21,6 +22,7 @@ from app.services.comment_permissions import (
     authorize,
 )
 from app.services.comments_revisions import Editor, RevisionConflict
+from app.services.workspace_schema_migrations import WORKSPACE_LEDGER
 from support.postgres import requires_scratch_postgres, scratch_schema, comments_store_on, set_path  # noqa: E402
 
 
@@ -116,6 +118,28 @@ class CommentStorePostgresTests(unittest.TestCase):
         self.assertEqual(self.store.get_comments_file(self.project_id, self.path.name)["comments"], [])
         self.assertEqual(len(self.store.get_history(self.project_id, "root", cid)), 3)
         self.assertEqual(len(self.store.get_history(self.project_id, "reply", rid)), 2)
+
+    def test_a_comment_change_appends_to_the_event_log_after_the_commit(self) -> None:
+        events = scratch_schema(self, "comment_events", ledgers=(WORKSPACE_LEDGER,))
+
+        with patch.object(event_log, "connect", events.connection):
+            created = self.store.create_comment(
+                self.project_id, self.path.name, "PCB", {"x": 1, "y": 2}, "Hello", "Author",
+                author_user_id="user:author", author_kind="user",
+            )
+
+        with events.connect() as conn:
+            rows = conn.execute(
+                "SELECT kind, project_id, payload FROM ws_events ORDER BY id"
+            ).fetchall()
+        self.assertEqual(
+            [(row["kind"], row["project_id"]) for row in rows],
+            [("comment.changed", self.project_id)],
+        )
+        self.assertEqual(
+            rows[0]["payload"],
+            {"commentId": created["id"], "changeKind": "upsert"},
+        )
 
     def test_legacy_import_retains_id_without_claiming_owner(self) -> None:
         import json

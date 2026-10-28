@@ -14,7 +14,9 @@ use crate::generator::sha256_hex;
 use crate::reader::BundleReader;
 use crate::zip::ReadAt;
 use cap_std::ambient_authority;
-use cap_std::fs::{Dir, OpenOptions, Permissions, PermissionsExt};
+use cap_std::fs::{Dir, OpenOptions};
+#[cfg(unix)]
+use cap_std::fs::{Permissions, PermissionsExt};
 use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -84,6 +86,21 @@ fn io_failure(path: &str, error: &std::io::Error) -> Failure {
     .argument("output")
 }
 
+#[cfg(unix)]
+fn set_mode(dir: &Dir, name: &str, mode: u32) -> std::io::Result<()> {
+    dir.set_permissions(name, Permissions::from_mode(mode))
+}
+
+/// Windows has no mode bits; the files this crate writes are already writable.
+#[cfg(windows)]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "same signature as the Unix version"
+)]
+fn set_mode(_dir: &Dir, _name: &str, _mode: u32) -> std::io::Result<()> {
+    Ok(())
+}
+
 fn open_parent(root: &Dir, path: &str) -> Outcome<Dir> {
     let mut dir = root.try_clone().map_err(|error| io_failure(path, &error))?;
     let mut segments: Vec<&str> = path.split('/').collect();
@@ -94,9 +111,9 @@ fn open_parent(root: &Dir, path: &str) -> Outcome<Dir> {
             Ok(_) => return Err(collision(path, "a link or file is in the way")),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 match dir.create_dir(segment) {
-                    Ok(()) => dir
-                        .set_permissions(segment, Permissions::from_mode(0o755))
-                        .map_err(|error| io_failure(path, &error))?,
+                    Ok(()) => {
+                        set_mode(&dir, segment, 0o755).map_err(|error| io_failure(path, &error))?
+                    }
                     Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                     Err(error) => return Err(io_failure(path, &error)),
                 }
@@ -139,7 +156,7 @@ fn write_file(dir: &Dir, path: &str, bytes: &[u8]) -> Outcome<()> {
         let mut file = dir.open_with(&temp, &options)?;
         file.write_all(bytes)?;
         file.sync_all()?;
-        dir.set_permissions(&temp, Permissions::from_mode(0o644))?;
+        set_mode(dir, &temp, 0o644)?;
         dir.rename(&temp, dir, name)
     })();
     if let Err(error) = result {

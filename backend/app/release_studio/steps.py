@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.services.kicad_tools import KicadTool, ToolError
+from app.services.tree_removal import remove_tree
 
 
 DEFAULT_CLI_TIMEOUT_SECONDS = 900
@@ -633,7 +634,7 @@ def run_board_jobset(
     if not project.is_file():
         return ()
     work = project_dir / JOBSET_DIR
-    shutil.rmtree(work, ignore_errors=True)
+    remove_tree(work, ignore_errors=True)
     jobs, outputs, settings_of = [], [], {}
     for spec in specs:
         settings = dict(JOBSET_SETTINGS[spec.step_id])
@@ -663,7 +664,7 @@ def run_board_jobset(
         print(f"[board-jobset] {exc}; running the steps one by one", flush=True)
         return ()
     finally:
-        shutil.rmtree(temp, ignore_errors=True)
+        remove_tree(temp, ignore_errors=True)
     elapsed_ms = int((time.perf_counter() - started) * 1000)
 
     done: list[StepOutput] = []
@@ -698,7 +699,7 @@ def run_board_jobset(
                 elapsed_ms=elapsed_ms,
             )
         )
-    shutil.rmtree(work, ignore_errors=True)
+    remove_tree(work, ignore_errors=True)
     return tuple(done)
 
 

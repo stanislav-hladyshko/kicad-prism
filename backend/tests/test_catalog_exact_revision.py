@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
@@ -57,6 +58,99 @@ class ComponentDetailRouteTests(unittest.TestCase):
         self.assertEqual(payload["revision_id"], "r1")
         self.assertTrue(payload["manifest_url"].endswith("/api/remote-provider/parts/c1?revision=r1"))
         self.assertTrue(payload["inline_url"].endswith("/components/c1/inline?revision=r1"))
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import remote_provider_models as models
+
+        typed = models.ComponentDetail.model_validate(payload).model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
+        self.assertEqual(typed, jsonable_encoder(payload))
+
+
+class ProviderJsonResponseModelTests(unittest.TestCase):
+    """Search, categories, the part manifest and the inline bundle serialize unchanged."""
+
+    HEAD = {
+        "id": "c1", "slug": "c1", "name": "R", "identity_kind": "mpn", "manufacturer": "Acme",
+        "mpn": "R-1", "description": "", "package_name": "0402", "category": "Resistors",
+        "datasheet_url": "", "summary": "", "version": "1.0.0", "library_name": "L",
+        "symbol_name": "R", "representations": [], "assets": [], "previews": [],
+        "availability_state": "place_ready", "missing_assets": [], "place_enabled": True,
+        "release_status": "released", "workflow_stage": "released", "supply": {"sources": []},
+        "default_representation_id": "", "revision_id": "r1",
+    }
+
+    def test_the_page_categories_manifest_and_inline_bundle_match_their_models(self) -> None:
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import remote_provider as rp
+        from app.api import remote_provider_models as models
+
+        request = SimpleNamespace(headers={})
+        with (
+            patch.object(rp, "_provider_origin", return_value="https://prism.example"),
+            patch.object(rp.catalog_service, "remote_projection_version", return_value="7"),
+            patch.object(
+                rp.catalog_service,
+                "list_remote_component_heads",
+                return_value={
+                    "items": [self.HEAD], "total": 1, "has_more": False,
+                    "page": 1, "pages": 1, "page_size": 50,
+                },
+            ),
+            patch.object(
+                rp.catalog_service,
+                "list_remote_categories",
+                return_value={"categories": [{"name": "Resistors", "count": 1}], "projection_version": "7"},
+            ),
+        ):
+            search = asyncio.run(rp.search_components(request, q="r", page=1, page_size=50, include_total=True, user=None))
+            page = json.loads(search.body)
+            self.assertEqual(
+                models.ComponentPage.model_validate(page).model_dump(mode="json", by_alias=True, exclude_unset=True),
+                jsonable_encoder(page),
+            )
+            categories = asyncio.run(rp.list_categories(request, user=None))
+            category_body = json.loads(categories.body)
+            self.assertEqual(category_body, {"categories": [{"name": "Resistors", "count": 1}]})
+            self.assertEqual(
+                models.CategoryList.model_validate(category_body).model_dump(
+                    mode="json", by_alias=True, exclude_unset=True
+                ),
+                jsonable_encoder(category_body),
+            )
+
+        manifest = {
+            "part_id": "c1", "display_name": "R", "summary": "", "license": "Managed in KiCAD Prism",
+            "representation_id": "rep1", "library_name": "L", "symbol_name": "R",
+            "assets": [{
+                "asset_type": "symbol", "name": "R.kicad_sym", "target_library": "L",
+                "target_name": "R", "content_type": "application/x-kicad-symbol", "size_bytes": 12,
+                "sha256": "f" * 64, "required": True, "download_url": "https://prism.example/a",
+            }],
+        }
+        inline = {
+            "part_id": "c1", "display_name": "R", "representation_id": "rep1", "library": "L",
+            "symbol_name": "R", "compression": "NONE", "data": "e30=",
+        }
+        with (
+            patch.object(rp, "_provider_origin", return_value="https://prism.example"),
+            patch.object(rp.catalog_service, "build_manifest", return_value=manifest),
+            patch.object(rp.catalog_service, "build_inline_bundle", return_value=inline),
+        ):
+            response = asyncio.run(rp.get_part_manifest("c1", request, representation="", revision="", user=None))
+            body = json.loads(response.body)
+            self.assertEqual(
+                models.PartManifest.model_validate(body).model_dump(mode="json", by_alias=True, exclude_unset=True),
+                jsonable_encoder(body),
+            )
+            response = asyncio.run(rp.get_inline_component("c1", representation="", revision="", user=None))
+            body = json.loads(response.body)
+            self.assertEqual(
+                models.InlineBundle.model_validate(body).model_dump(mode="json", by_alias=True, exclude_unset=True),
+                jsonable_encoder(body),
+            )
 
 
 @requires_scratch_postgres("exact revision placement tests")

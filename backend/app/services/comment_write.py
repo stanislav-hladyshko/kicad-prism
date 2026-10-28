@@ -88,15 +88,15 @@ def insert_reply(
         f"""
         INSERT INTO comment_replies(
             id, comment_id, project_id, author, timestamp, content,
-            author_user_id, author_kind, revision, updated_at, origin, content_format
+            author_user_id, author_kind, author_client_id, revision, updated_at, origin, content_format
         )
-        SELECT %s, %s, %s, %s, NOW(), %s, %s, %s, 1, NOW(), %s, COALESCE(%s, 'plain')
+        SELECT %s, %s, %s, %s, NOW(), %s, %s, %s, %s, 1, NOW(), %s, COALESCE(%s, 'plain')
         FROM comments
         WHERE project_id = %s AND id = %s{root_guard}
         """,
         (
             reply_id, comment_id, project_id, editor.display, content,
-            editor.user_id, editor.kind, editor.origin, content_format,
+            editor.user_id, editor.kind, editor.client_id, editor.origin, content_format,
             project_id, comment_id,
         ),
     )

@@ -20,9 +20,12 @@ from unittest.mock import patch
 from app.api import release_studio as api
 from app.core.errors import DomainError
 from app.release_studio.config import technical_config_digest
+from app.services import event_log
 from app.services.forge_publish_service import ForgePublishError
 from app.services.job_service import jobs as job_queue
 from app.services.release_studio_publish_service import ReleasePublisher
+from app.services.workspace_schema_migrations import WORKSPACE_LEDGER
+from support.postgres import requires_scratch_postgres, scratch_schema
 from tests.release_publish_fakes import FakeForge, FakeRecords
 
 REPO = {"name": "board", "repo_url": "https://github.com/org/board.git"}
@@ -224,6 +227,35 @@ class DetailAndApprovalTests(_Desk):
         self.assertFalse(state["approvals"]["can_publish"])
         self.assertEqual(self.records.decisions[-1]["decision"], "withdrawn")
         self.assertEqual(self.records.decisions[-1]["actor"], "qa@example.com")
+
+
+@requires_scratch_postgres("the release.approved producer")
+class ApprovalEventTests(_Desk):
+    def test_an_approval_appends_release_approved_after_the_decision_commits(self) -> None:
+        self.records.decisions.clear()  # _Desk starts fully approved; cast the QA slot here.
+        events = scratch_schema(self, "release_events", ledgers=(WORKSPACE_LEDGER,))
+
+        with patch.object(event_log, "connect", events.connection):
+            self.publisher.decide(
+                "project", "build-1", slot="qa", decision="approved", note="", actor=QA
+            )
+
+        with events.connect() as conn:
+            rows = conn.execute("SELECT kind, project_id, payload FROM ws_events").fetchall()
+        self.assertEqual(
+            [(row["kind"], row["project_id"]) for row in rows],
+            [("release.approved", "project")],
+        )
+        self.assertEqual(rows[0]["payload"], {"buildId": "build-1", "commit": "a" * 40})
+
+    def test_a_withdrawal_appends_no_approval_event(self) -> None:
+        events = scratch_schema(self, "release_events", ledgers=(WORKSPACE_LEDGER,))
+        with patch.object(event_log, "connect", events.connection):
+            self.publisher.decide(
+                "project", "build-1", slot="qa", decision="withdrawn", note="not yet", actor=QA
+            )
+        with events.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) AS count FROM ws_events").fetchone()["count"], 0)
 
 
 UNREADABLE = "hardware/board.kicad_pcb::${KICAD10_3DMODEL_DIR}/R_0603.step"

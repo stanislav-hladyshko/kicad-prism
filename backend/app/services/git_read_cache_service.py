@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from app.services.ops import stats as ops_stats
 from app.core.config import settings
 from app.services.postgres_database import database
 from app.services.workspace_service import workspace
@@ -73,7 +74,9 @@ class GitReadCacheService:
                 ).fetchone()
                 conn.commit()
             if not row:
+                ops_stats.incr("git_read_cache.miss")
                 return None
+            ops_stats.incr("git_read_cache.hit")
             payload = row["payload"]
             return json.loads(payload) if isinstance(payload, str) else payload
         except Exception:

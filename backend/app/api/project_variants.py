@@ -19,10 +19,11 @@ import hashlib
 import json
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api._helpers import get_project_for_role_or_404
 from app.core.security import AuthenticatedUser, require_viewer
@@ -30,6 +31,45 @@ from app.services import variant_catalog_service
 from app.services.design_bundle import consumer
 
 router = APIRouter(dependencies=[Depends(require_viewer)])
+
+
+class VariantCatalogEntry(BaseModel):
+    """One named design variant in the catalog order."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    name: str
+    description: Optional[str]
+    sources: list[str]
+
+
+class VariantCatalogDiagnostic(BaseModel):
+    """A catalog-builder diagnostic, in today's key order."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    code: Optional[str] = None
+    severity: Optional[str] = None
+    source: Optional[str] = None
+    path: Optional[str] = None
+    message: Optional[str] = None
+    detail: Optional[Any] = None
+
+
+class ProjectVariantCatalog(BaseModel):
+    """The revision's variant catalog and its diagnostics."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    # ``schema`` is the payload's own key; the field is named around Pydantic's
+    # deprecated ``BaseModel.schema`` attribute and serialized by its alias.
+    schema_document: str = Field(alias="schema")
+    projectId: str
+    commit: Optional[str]
+    sourceRevisionKey: str
+    variants: list[VariantCatalogEntry]
+    diagnostics: list[VariantCatalogDiagnostic]
+
 
 
 def _catalog_generator_tag() -> str:
@@ -48,7 +88,11 @@ def _catalog_generator_tag() -> str:
 CATALOG_GENERATOR_TAG = _catalog_generator_tag()
 
 
-@router.get("/{project_id}/variants")
+@router.get(
+    "/{project_id}/variants",
+    response_model=ProjectVariantCatalog,
+    summary="The revision's ordered design-variant catalog",
+)
 async def get_project_variants(
     project_id: str,
     request: Request,

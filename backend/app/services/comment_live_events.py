@@ -2,16 +2,29 @@
 
 Call ``record_change`` inside the same transaction as the comment mutation.
 PostgreSQL NOTIFY only wakes listeners; ``comment_change_events`` is the replay
-source after a disconnected client or API worker resumes.
+source after a disconnected client or API worker resumes. A writer that opens
+``queued_events()`` also gets one ``comment.changed`` in the event log for each
+change, appended after its transaction commits.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator
+
+from app.services import event_log
 
 
 CHANNEL = "prism_comment_changes"
+
+# The changes of the writer currently inside ``queued_events()``. The queue
+# belongs to that writer, not to the pooled connection, so a change recorded
+# on a path without a writer scope can never surface in a later checkout.
+_QUEUE: ContextVar[list[dict[str, str]] | None] = ContextVar(
+    "comment_changed_queue", default=None
+)
 
 
 def apply_schema(conn: Any) -> None:
@@ -101,7 +114,46 @@ def record_change(
         "SELECT pg_notify(%s, %s)",
         (CHANNEL, json.dumps({"projectId": project_id, "cursor": cursor}, separators=(",", ":"))),
     )
+    _queue_event(project_id=project_id, comment_id=comment_id, change_kind=change_kind)
     return cursor
+
+
+def _queue_event(*, project_id: str, comment_id: str, change_kind: str) -> None:
+    """Remember one change for the enclosing writer to log after its commit.
+
+    The event log is written outside the comment transaction: its head row
+    serializes writers, and an event for a mutation that rolled back would be a
+    lie. Outside ``queued_events()`` the change is not logged.
+    """
+
+    queued = _QUEUE.get()
+    if queued is not None:
+        queued.append(
+            {"projectId": project_id, "commentId": comment_id, "changeKind": change_kind}
+        )
+
+
+@contextmanager
+def queued_events() -> Iterator[list[dict[str, str]]]:
+    """Collect the changes recorded inside the block; the caller logs them."""
+
+    queued: list[dict[str, str]] = []
+    token = _QUEUE.set(queued)
+    try:
+        yield queued
+    finally:
+        _QUEUE.reset(token)
+
+
+def record_queued_events(events: list[dict[str, str]]) -> None:
+    """Append one ``comment.changed`` event for each committed change."""
+
+    for change in events:
+        event_log.record_quietly(
+            "comment.changed",
+            project_id=change["projectId"],
+            payload={"commentId": change["commentId"], "changeKind": change["changeKind"]},
+        )
 
 
 def record_thread_change(conn: Any, *, project_id: str, comment_id: str, change_kind: str) -> int:

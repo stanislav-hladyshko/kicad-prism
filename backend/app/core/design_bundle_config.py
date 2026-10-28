@@ -104,7 +104,11 @@ class DesignBundleSettings(BaseSettings):
         description="KiCad upgrades of one source set run at once (each file in its own scratch directory).",
     )
     PRISM_KICAD_PYTHON: str = Field(
-        default="/usr/bin/python3", description="KiCad's Python (imports pcbnew) for the zone refill and board upgrades."
+        default="",
+        description=(
+            "KiCad's Python (imports pcbnew) for the zone refill and board upgrades. "
+            "Empty finds it: python.exe beside kicad-cli.exe on Windows, KiCad.app's Python on macOS, /usr/bin/python3 on Linux."
+        ),
     )
     PRISM_ZONE_REFILL_TIMEOUT_SECONDS: int = Field(default=900, ge=10, description="One pcbnew zone refill.")
 

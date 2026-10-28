@@ -12,6 +12,10 @@ Both run inside the claim's transaction, for the claiming worker's pool:
   rather than retried: whatever enqueued them may no longer exist.
 
 Expired ``running`` attempts are not ended here; the claim reclaims them.
+
+Each function returns the jobs it ended as ``(job_id, kind, project_id,
+state)``, so the claim can append ``job.finished`` once its transaction commits,
+as every other way a job ends does.
 """
 
 from __future__ import annotations
@@ -20,23 +24,27 @@ from typing import Any, Callable
 
 ReleaseClaims = Callable[[Any, str, int], None]
 RecordEvent = Callable[..., None]
+#: ``(job_id, kind, project_id, terminal state)`` for one ended job.
+Ended = tuple[str, str, Any, str]
 
 
 def recover_dead_attempts(
     conn: Any, worker_pool: str, release_claims: ReleaseClaims, record_event: RecordEvent
-) -> None:
-    finalize_expired_cancellations(conn, worker_pool, release_claims, record_event)
-    end_unleased_attempts(conn, worker_pool, release_claims, record_event)
+) -> list[Ended]:
+    return [
+        *finalize_expired_cancellations(conn, worker_pool, release_claims, record_event),
+        *end_unleased_attempts(conn, worker_pool, release_claims, record_event),
+    ]
 
 
 def finalize_expired_cancellations(
     conn: Any, worker_pool: str, release_claims: ReleaseClaims, record_event: RecordEvent
-) -> None:
+) -> list[Ended]:
     """Fence dead cancelling attempts so they cannot block dedup or resources."""
 
     rows = conn.execute(
         """
-        SELECT id, fence
+        SELECT id, fence, kind, project_id
         FROM ws_jobs
         WHERE worker_pool = %s
           AND status = 'cancel_requested'
@@ -48,10 +56,11 @@ def finalize_expired_cancellations(
         """,
         (worker_pool,),
     ).fetchall()
+    ended: list[Ended] = []
     for row in rows:
         job_id = str(row["id"])
         old_fence = int(row["fence"] or 0)
-        conn.execute(
+        updated = conn.execute(
             """
             UPDATE ws_jobs
             SET status = 'cancelled', stage = 'cancelled',
@@ -70,16 +79,19 @@ def finalize_expired_cancellations(
             "cancelled_after_lease_expiry",
             details={"previous_fence": old_fence, "fence": old_fence + 1},
         )
+        if updated.rowcount == 1:
+            ended.append((job_id, str(row["kind"]), row["project_id"], "cancelled"))
+    return ended
 
 
 def end_unleased_attempts(
     conn: Any, worker_pool: str, release_claims: ReleaseClaims, record_event: RecordEvent
-) -> None:
+) -> list[Ended]:
     """End active jobs that hold no lease, which no worker can own or reclaim."""
 
     rows = conn.execute(
         """
-        SELECT id, fence, status
+        SELECT id, fence, status, kind, project_id
         FROM ws_jobs
         WHERE worker_pool = %s
           AND status IN ('running', 'cancel_requested')
@@ -90,11 +102,12 @@ def end_unleased_attempts(
         """,
         (worker_pool,),
     ).fetchall()
+    ended: list[Ended] = []
     for row in rows:
         job_id = str(row["id"])
         old_fence = int(row["fence"] or 0)
         cancelling = row["status"] == "cancel_requested"
-        conn.execute(
+        updated = conn.execute(
             """
             UPDATE ws_jobs
             SET status = %s, stage = %s, message = %s,
@@ -124,3 +137,7 @@ def end_unleased_attempts(
             "ended_without_lease",
             details={"previous_status": row["status"], "previous_fence": old_fence, "fence": old_fence + 1},
         )
+        if updated.rowcount == 1:
+            state = "cancelled" if cancelling else "failed"
+            ended.append((job_id, str(row["kind"]), row["project_id"], state))
+    return ended

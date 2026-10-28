@@ -74,8 +74,14 @@ def current_table() -> dict:
             if hit is not None:
                 dispatch[f"{method} {url}"] = hit
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")  # git_http's duplicate operation id, outside /api/projects
-        paths = app.openapi()["paths"]
+        warnings.simplefilter("ignore")
+        # The published document renames the /api paths to /api/v1; undo that so
+        # the snapshot stays keyed by the route table this test guards.
+        paths = {
+            "/api" + path[len("/api/v1"):]: item
+            for path, item in app.openapi()["paths"].items()
+            if path.startswith("/api/v1/")
+        }
     operations = {
         f"{method.upper()} {path}": hashlib.sha256(json.dumps(operation, sort_keys=True).encode()).hexdigest()
         for path, item in paths.items()

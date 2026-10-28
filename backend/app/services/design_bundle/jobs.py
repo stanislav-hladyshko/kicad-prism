@@ -41,8 +41,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from app.services.ops import stats as ops_stats
 from app.core.config import settings
-from app.services import kicad_tools, project_revision
+from app.services import event_log, kicad_tools, project_revision
 from app.services.design_bundle import (
     cli,
     design_keys,
@@ -311,6 +312,8 @@ class _Run:
         self.revision_key = key.key.revision_key  # type: ignore[union-attr]
         self.generator = generator
         self.bundle_key = generator.bundle_key(self.revision_key)
+        # ``bundle.built`` names this job's completion, once, not every stage publish.
+        self._built_recorded = False
         self.work = context.staging_dir
         self.archive_path = store.prepare(self.project_id, self.revision_key, generator.digest)
         self.details: dict[str, Any] = {
@@ -408,6 +411,12 @@ class _Run:
             job_id=self.context.job_id, archive_bytes=self.archive_path.stat().st_size,
             error=manifest_rules.failure_reasons(archive.manifest),
         )
+        if state == "complete" and not self._built_recorded:
+            self._built_recorded = True
+            event_log.record_quietly(
+                "bundle.built", project_id=self.project_id,
+                payload={"commit": self.key.commit, "revisionKey": self.revision_key},
+            )
         if stage == "parse":
             self.details["design_key"] = design_keys.record(self.project_id, self.bundle_key, archive)
         self.details["stages"] = statuses
@@ -453,6 +462,8 @@ class _Run:
             unavailable_gitlinks=done.unavailable_gitlinks, upgraded=upgraded,
             upgrade_cache_hits=upgrades.hits, upgrade_cache_misses=upgrades.misses,
         )
+        ops_stats.incr("bundle.upgrade_cache.hit", upgrades.hits)
+        ops_stats.incr("bundle.upgrade_cache.miss", upgrades.misses)
         self.context.progress(stage="bundle-parse", message="Design bundle: stage parse", percent=15, force=True)
         args = [
             "bundle", "build", str(src / self.config["project_file"]), "--stage", "parse",
@@ -485,6 +496,7 @@ class _Run:
             except kicad_steps.KicadStepFailed as error:
                 raise RetryableJobError(str(error), code="zone-refill-failed", retry_after_seconds=30) from error
             self.details["refill_cache_hit"] = refill_hit
+            ops_stats.incr("bundle.refill_cache.hit" if refill_hit else "bundle.refill_cache.miss")
             args += ["--refilled-board", str(refilled), "--refill-tool", self._tool_version()]
         self.cli(args, "board")
         return self._reopen("board")
@@ -503,6 +515,7 @@ class _Run:
         except kicad_steps.KicadStepFailed as error:
             raise RetryableJobError(str(error), code="glb-export-failed", retry_after_seconds=30) from error
         self.details["models_cache_hit"] = hit
+        ops_stats.incr("bundle.models_cache.hit" if hit else "bundle.models_cache.miss")
         args = ["bundle", "build", "--stage", "models", "--in", str(self.archive_path), "-o", str(self.archive_path),
                 "--models-glb", str(glb), "--models-tool", self._tool_version(), "--revision-key", self.revision_key,
                 *stage_models.hlr_args(), *cli.limits("models")]
@@ -656,6 +669,14 @@ def settle_design_bundle_end(job: Mapping[str, Any]) -> bool:
         bundle_key=bundle_key, project_id=found["project_id"], revision_key=found["revision_key"],
         generator_digest=found["generator_digest"], commit=found.get("commit_sha"), state="failed",
         error=str(job.get("error_message") or job.get("status")),
+    )
+    event_log.record_quietly(
+        "bundle.failed", project_id=project_id,
+        payload={
+            "commit": found.get("commit_sha"),
+            "revisionKey": found["revision_key"],
+            "reason": str(job.get("error_message") or job.get("status") or ""),
+        },
     )
     return True
 

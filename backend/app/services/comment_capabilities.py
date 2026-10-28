@@ -20,7 +20,14 @@ from app.services.trackers.promotion import PromotionActor
 
 
 def editor_for(actor: ActorIdentity) -> Editor:
-    return Editor(user_id=actor.actor_id, kind=actor.actor_kind, display=actor.display_name)
+    return Editor(
+        user_id=actor.actor_id,
+        kind=actor.actor_kind,
+        display=actor.display_name,
+        auth_type=actor.auth_type,
+        client_id=actor.client_id or None,
+        token_id=actor.token_id or None,
+    )
 
 
 def promotion_actor_for(actor: ActorIdentity) -> PromotionActor:

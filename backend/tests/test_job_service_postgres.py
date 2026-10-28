@@ -6,7 +6,9 @@ import tempfile
 import uuid
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from app.services import job_service
 from app.services.job_service import JobService
 from app.services.postgres_database import database
 
@@ -39,10 +41,22 @@ class JobServicePostgresTests(unittest.TestCase):
                 (self.job_ids,),
             )
             conn.execute(
+                "DELETE FROM ws_events WHERE topic = ANY(%s)",
+                ([f"job:{job_id}" for job_id in self.job_ids],),
+            )
+            conn.execute(
                 "DELETE FROM ws_job_resource_slots WHERE resource_name = %s",
                 (self.resource,),
             )
             conn.commit()
+
+    def _events(self, job_id: str):
+        with database.connection() as conn:
+            conn.execute("SET search_path TO workspace, public")
+            return conn.execute(
+                "SELECT * FROM ws_events WHERE topic = %s ORDER BY id",
+                (f"job:{job_id}",),
+            ).fetchall()
 
     def enqueue(self, artifact_key: str, **kwargs):
         job = self.service.enqueue(
@@ -92,6 +106,19 @@ class JobServicePostgresTests(unittest.TestCase):
             )
             conn.commit()
 
+    def test_enqueued_job_matches_the_release_studio_response_model(self) -> None:
+        """``create_candidate`` answers this row, so the typed model must keep it byte-for-byte."""
+
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        job = self.enqueue("model-check")
+        self.assertEqual(
+            models.JobRecord.model_validate(job).model_dump(mode="json"),
+            jsonable_encoder(job),
+        )
+
     def test_active_dedup_includes_cancellation(self) -> None:
         first = self.enqueue("same-artifact")
         duplicate = self.enqueue("same-artifact")
@@ -117,6 +144,47 @@ class JobServicePostgresTests(unittest.TestCase):
         replacement = self.enqueue("same-artifact")
         self.assertNotEqual(first["job_id"], replacement["job_id"])
 
+    def test_a_completed_job_appends_job_finished_after_the_commit(self) -> None:
+        job = self.enqueue("finished")
+        claim = self.service.claim("worker-a", worker_pool=self.pool)
+        self.assertTrue(
+            self.service.complete(job["job_id"], "worker-a", int(claim["fence"]))
+        )
+
+        finished = [row for row in self._events(job["job_id"]) if row["kind"] == "job.finished"]
+        self.assertEqual(len(finished), 1)
+        self.assertEqual(
+            finished[0]["payload"],
+            {"jobId": job["job_id"], "jobKind": self.kind, "state": "completed"},
+        )
+
+    def test_progress_events_hold_one_per_job_per_two_seconds(self) -> None:
+        job = self.enqueue("progress")
+        claim = self.service.claim("worker-a", worker_pool=self.pool)
+        job_id, fence = job["job_id"], int(claim["fence"])
+
+        def progress(percent: float) -> None:
+            self.assertTrue(
+                self.service.progress(job_id, "worker-a", fence, percent=percent)
+            )
+
+        # Two moves inside one window record once; the next window records the
+        # new value, and repeating it does not record again.
+        with mock.patch.object(job_service, "_monotonic", return_value=100.0):
+            progress(10)
+            progress(20)
+        with mock.patch.object(job_service, "_monotonic", return_value=102.5):
+            progress(30)
+        with mock.patch.object(job_service, "_monotonic", return_value=105.0):
+            progress(30)
+
+        recorded = [
+            row["payload"]["progress"]
+            for row in self._events(job_id)
+            if row["kind"] == "job.progress"
+        ]
+        self.assertEqual(recorded, [10.0, 30.0])
+
     def test_expired_cancel_requested_is_finalized_and_leaves_dedup(self) -> None:
         first = self.enqueue("cancel-expire")
         claimed = self.service.claim("worker-a", worker_pool=self.pool)
@@ -130,6 +198,9 @@ class JobServicePostgresTests(unittest.TestCase):
         self.assertIsNone(self.service.claim("worker-b", worker_pool=self.pool))
         finalized = self.service.get(first["job_id"])
         self.assertEqual(finalized["status"], "cancelled")
+
+        finished = [row for row in self._events(first["job_id"]) if row["kind"] == "job.finished"]
+        self.assertEqual([row["payload"]["state"] for row in finished], ["cancelled"])
 
         replacement = self.enqueue("cancel-expire")
         self.assertFalse(replacement.get("deduplicated"))
@@ -151,6 +222,9 @@ class JobServicePostgresTests(unittest.TestCase):
         failed = self.service.get(running["job_id"])
         self.assertEqual((failed["status"], failed["error_code"]), ("failed", "orphaned"))
         self.assertEqual(self.service.get(cancelling["job_id"])["status"], "cancelled")
+        for job_id, state in ((running["job_id"], "failed"), (cancelling["job_id"], "cancelled")):
+            finished = [row for row in self._events(job_id) if row["kind"] == "job.finished"]
+            self.assertEqual([row["payload"]["state"] for row in finished], [state])
 
         replacement = self.enqueue("unleased-running")
         self.assertNotEqual(running["job_id"], replacement["job_id"])

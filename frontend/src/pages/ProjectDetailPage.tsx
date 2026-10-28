@@ -1,5 +1,5 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import { ReleaseStudioPanel } from "@/components/release-studio/ReleaseStudioPanel";
 import { useSimStudioAvailable } from "@/components/sim-studio/use-sim-studio-available";
@@ -22,6 +22,7 @@ import {
 } from "./project-section-cache";
 
 import { VISUALIZER_DESIGN_SEARCH_SLOT_ID } from "@/lib/design-search";
+import { installPrismScriptApi } from "@/lib/prism-script-api";
 import { canAdministerWorkspace, canCommentOnProjects, canManageProjects } from "@/lib/roles";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { projectLastUpdated } from "@/lib/project-dates";
@@ -144,6 +145,7 @@ const getDisplayName = (project: Project) => {
 export function ProjectDetailPage({ user }: { user: User | null }) {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const [project, setProject] = useState<Project | null>(null);
     const [readme, setReadme] = useState<string>("");
@@ -227,6 +229,24 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
     useEffect(() => {
         setActiveSection(sectionFromSearchParams(searchParams));
     }, [searchParams]);
+
+    // `window.prism` (MCP-21) lives for the project page, not one section:
+    // link/open work from anywhere on the page, and the viewer reports what it
+    // can read when it is mounted.
+    const latestSearch = useRef(searchParams);
+    const latestPath = useRef(location.pathname);
+    useEffect(() => {
+        latestSearch.current = searchParams;
+        latestPath.current = location.pathname;
+    }, [location.pathname, searchParams]);
+    useEffect(() => {
+        if (!projectId) return;
+        return installPrismScriptApi(projectId, {
+            search: () => latestSearch.current,
+            pathname: () => latestPath.current,
+            navigate: (url) => navigate(url),
+        });
+    }, [navigate, projectId]);
 
     const visitedSections = useVisitedProjectSections(projectId, activeSection);
 

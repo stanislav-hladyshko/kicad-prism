@@ -480,6 +480,7 @@ class ReleaseStudioInputApiTests(unittest.TestCase):
             "schematics": ["a.kicad_sch"],
             "board": "a.kicad_pcb",
             "schematic": "a.kicad_sch",
+            "project": "a.kicad_pro",
             "variants": ["default", "assembly"],
             "bom_presets": ["Current project settings", "Grouped By Value"],
             "default_bom_preset": "Current project settings",
@@ -505,13 +506,21 @@ class ReleaseStudioInputApiTests(unittest.TestCase):
             ),
             patch(
                 "app.services.forge_publish_service.describe_forge",
-                return_value=type("Forge", (), {"to_dict": lambda self: {"kind": "github"}})(),
+                return_value=type("Forge", (), {"to_dict": lambda self: {"kind": "github", "name": "GitHub", "host": "github.com", "owner_repo": "org/repo", "token_configured": True, "token_hint": ""}})(),
             ),
         ):
             payload = asyncio.run(self.api.get_source("proj", commit_sha="a" * 40, user=self.user))
         self.assertEqual(payload["source"]["board"], "b.kicad_pcb")
         self.assertEqual(payload["source"]["variant"], "assembly")
         self.assertEqual(payload["source"]["default_bom_preset"], "Grouped By Value")
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.SourceResponse.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
 
     def test_put_source_defaults_persists(self) -> None:
         import asyncio
@@ -531,6 +540,14 @@ class ReleaseStudioInputApiTests(unittest.TestCase):
         persist.assert_called_once()
         self.assertEqual(persist.call_args.args[0], "proj")
         self.assertEqual(payload["defaults"]["board"], "b.kicad_pcb")
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.SourceDefaultsResponse.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
 
     def test_create_candidate_remembers_source_picks(self) -> None:
         import asyncio
@@ -596,6 +613,14 @@ class ReleaseStudioInputApiTests(unittest.TestCase):
         forge_for.assert_called_once_with("https://github.com/org/repo.git")
         self.assertEqual(forge.calls, ["tag_exists"])
         self.assertTrue(payload["exists"])
+        from fastapi.encoders import jsonable_encoder
+
+        from app.api import release_studio_models as models
+
+        self.assertEqual(
+            models.ReleaseTagCheck.model_validate(payload).model_dump(mode="json"),
+            jsonable_encoder(payload),
+        )
 
     def test_impedance_template_is_csv(self) -> None:
         import asyncio

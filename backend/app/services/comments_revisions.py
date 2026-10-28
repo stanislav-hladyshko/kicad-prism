@@ -73,14 +73,19 @@ class Editor:
     """Who is making the change and through which door.
 
     ``user_id`` is the stable actor key (``None`` for remote or system
-    edits), ``kind`` one of ``user``/``service``/``guest``/``remote_actor``/
-    ``remote_unknown``/``system`` and ``display`` the name shown in history.
+    edits), ``kind`` one of ``user``/``agent``/``service``/``guest``/
+    ``remote_actor``/``remote_unknown``/``system`` and ``display`` the name
+    shown in history. ``auth_type``, ``client_id`` and ``token_id`` record
+    which door the write came through; the token id stays internal.
     """
 
     user_id: Optional[str]
     kind: str
     display: str
     origin: str = ORIGIN_PRISM
+    auth_type: Optional[str] = None
+    client_id: Optional[str] = None
+    token_id: Optional[str] = None
 
 
 def _now() -> str:
@@ -172,9 +177,10 @@ def record_revision(
         INSERT INTO comment_revisions(
             project_id, target_kind, target_id, revision, change_kind,
             content, severity, comment_class, status, mentions,
-            editor_user_id, editor_kind, editor_display, origin, content_format
+            editor_user_id, editor_kind, editor_display, origin, content_format,
+            editor_auth_type, editor_client_id, editor_token_id
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             project_id, target_kind, target_id, revision, change_kind,
@@ -182,6 +188,7 @@ def record_revision(
             json.dumps(mentions) if mentions is not None else None,
             editor.user_id, editor.kind, editor.display, editor.origin,
             content_format if content is not None else None,
+            editor.auth_type, editor.client_id, editor.token_id,
         ),
     )
     if emit_change:
@@ -406,7 +413,8 @@ def history(conn, *, project_id: str, target_kind: str, target_id: str) -> List[
     rows = conn.execute(
         """
         SELECT revision, change_kind, content, content_format, severity, comment_class, status, mentions,
-               editor_user_id, editor_kind, editor_display, origin, created_at
+               editor_user_id, editor_kind, editor_display, editor_auth_type, editor_client_id,
+               origin, created_at
         FROM comment_revisions
         WHERE project_id = %s AND target_kind = %s AND target_id = %s
         ORDER BY revision ASC
@@ -428,6 +436,8 @@ def history(conn, *, project_id: str, target_kind: str, target_id: str) -> List[
             "editorUserId": row["editor_user_id"],
             "editorKind": row["editor_kind"],
             "editorDisplay": row["editor_display"],
+            "editorAuthType": row.get("editor_auth_type"),
+            "editorClientId": row.get("editor_client_id"),
             "origin": row["origin"],
             "editedAt": row["created_at"].isoformat().replace("+00:00", "Z") if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
         }

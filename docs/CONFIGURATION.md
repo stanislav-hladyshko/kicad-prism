@@ -39,6 +39,7 @@ Source builds use Docker build arguments instead.
 | `SESSION_SECRET` | signs session and provider tokens |
 | `SESSION_TTL_HOURS` | absolute session lifetime |
 | `SESSION_IDLE_TIMEOUT_MINUTES` | optional idle revocation |
+| `PRISM_PAT_MAX_DAYS` | longest personal access token lifetime in days (default 365); a create request defaults to 90 |
 | `PUBLIC_BASE_URL` | canonical public HTTPS origin |
 | `CORS_ORIGINS_STR` | exact browser origins permitted to send credentials |
 | `BOOTSTRAP_ADMIN_USERS_STR` | initial administrator emails |
@@ -60,6 +61,8 @@ password auth), or if required secret or database settings are incomplete.
 | `CATALOG_WORKER_CONCURRENCY` | catalog queued-job concurrency |
 | `PRISM_*_CONCURRENCY` | fenced slots for heavy job classes |
 | `PRISM_JOB_*` | leases, heartbeat, cancellation, and artifact retention |
+
+Both Compose files start PostgreSQL with `shared_preload_libraries=pg_stat_statements` and `pg_stat_statements.track=top` so the ops `get_slow_queries` diagnostic can report normalised statement timings; a managed instance must set the same or that tool answers `available: false`.
 
 Database capacity must cover all API and worker pools, not only one process.
 
@@ -195,7 +198,7 @@ retried.
 | `PRISM_DESIGN_BUNDLE_CACHE_MAX_BYTES`, `PRISM_DESIGN_BUNDLE_CACHE_PROJECT_MAX_BYTES` | unpacked-cache caps for the whole store and per project; least recently used versions go first; 0 disables a cap (defaults 4 GiB and 1 GiB). Archives are never evicted by these caps |
 | `PRISM_DESIGN_BUNDLE_GLB_TIMEOUT_SECONDS`, `PRISM_DESIGN_BUNDLE_UPGRADE_TIMEOUT_SECONDS` | the component GLB export and each source upgrade (defaults 600 and 900 s) |
 | `PRISM_DESIGN_BUNDLE_UPGRADE_WORKERS` | KiCad upgrades of one older source set run at once, each file in its own scratch directory (default 8) |
-| `PRISM_KICAD_PYTHON`, `PRISM_ZONE_REFILL_TIMEOUT_SECONDS` | KiCad's Python (imports `pcbnew`) for the zone refill and board upgrades, and the refill's timeout (default 900 s) |
+| `PRISM_KICAD_PYTHON`, `PRISM_ZONE_REFILL_TIMEOUT_SECONDS` | KiCad's Python (imports `pcbnew`) for the zone refill and board upgrades (unset: found next to `kicad-cli` on Windows and macOS, `/usr/bin/python3` on Linux), and the refill's timeout (default 900 s) |
 | `PRISM_DESIGN_BUNDLE_CLI_PATH`, `PRISM_DESIGN_BUNDLE_ROOT`, `PRISM_DESIGN_BUNDLE_SCHEMA_DIR` | host overrides for the binary (default `prism-kicad` on PATH), the store and the committed JSON Schema |
 | `GEOMETER_EXECUTABLE`, `PRISM_ARTWORK_CONFIG_DIR` | the pinned Geometer runtime the `models` stage runs for the parts' hidden-line views (the image sets it; empty leaves that member out), and the `prism-kicad artwork` configurations (default: from the checkout or the image) |
 
@@ -213,6 +216,74 @@ Issue publication is opt-in through an administrator-configured code host and
 project destination. It requires the tracker credential root key on both API
 and general workers. See [Tracker integration](TRACKER_INTEGRATION.md) for
 `TRACKER_CREDENTIAL_ROOT_KEY*`, rotation, webhooks, and recovery.
+
+### MCP server
+
+Connecting clients and what they can do: [Automating Prism](AUTOMATING_PRISM.md).
+
+`PRISM_MCP_ENABLED` is `false` by default. While false, the MCP
+server at `/mcp` and its OAuth metadata
+(`/.well-known/oauth-protected-resource`,
+`/.well-known/oauth-authorization-server/oauth/mcp`) answer 404. Set it to
+`true` to let agents connect with a personal access token or an OAuth client.
+Every tool runs through the caller's `/api/v1` routes, so their role, scopes and
+folder visibility decide what they see and do.
+
+`PRISM_MCP_OPS_ENABLED` is `false` by default. Set it to `true` to turn on admin
+diagnostics: the `/api/ops` routes, the ops MCP tools, and the `ops:read` and
+`ops:act` scopes. Only admins can hold or grant those scopes. The tools are
+listed in [Automating Prism](AUTOMATING_PRISM.md#ops-diagnostics). Request rows
+(`ws_ops_requests`) are kept 3 days, route and counter statistics 7 days, and
+captured profiles 7 days.
+`PUBLIC_BASE_URL` should name the deployment's public origin: it is the allowed
+`Origin`, the source of every result's link, and the OAuth resource.
+
+Administrators control what MCP clients may reach in Settings → MCP: a project
+scope (all visible projects or a list) and one switch per tool. A `tools/call`
+outside that policy is refused. Every call is audited in `ws_mcp_audit`;
+`PRISM_MCP_AUDIT_RETENTION_DAYS` is how many days of rows are kept (default
+365), and startup deletes older ones. `GET /api/admin/mcp-audit` reads them.
+
+## Retrying writes safely
+
+A client that retries a write can send an `Idempotency-Key` header (1-255
+printable ASCII characters) on any `POST`, `PUT`, `PATCH` or `DELETE` under
+`/api/`. Prism keeps the first response for 24 hours, scoped to the caller and
+operation, and returns it again with `Idempotent-Replayed: true` instead of
+running the write twice.
+
+- The same key with a different body answers `422` `idempotency-key-reused`.
+- A retry that arrives while the first request is still running answers `409`
+  `idempotency-key-in-progress`.
+- An invalid key answers `400` `idempotency-key-invalid`.
+- A request whose body exceeds 1 MiB is not covered: it passes through and
+  carries `Idempotency-Key-Status: skipped-large-body`.
+- A `5xx` response is not stored, so the retry runs the write again.
+
+Keys live in the workspace database (`ws_idempotency_keys`) and are swept after
+24 hours.
+
+### Event log
+
+`GET /api/v1/events?after=<cursor>` replays the append-only event log (revision
+synced, bundle built or failed, job progress and completion, comparison done,
+comment changed, release candidate built or approved). `PRISM_EVENT_RETENTION_DAYS`
+is how many days of events are kept (default 30); startup deletes older rows.
+
+### Outbound webhooks
+
+Administrators register signed HTTPS endpoints in Settings or through
+`/api/settings/webhooks`; each receives the events its kinds and projects admit,
+signed with Standard Webhooks (`webhook-id`, `webhook-timestamp`,
+`webhook-signature`). Delivery retries with a 30-second doubling backoff up to one
+hour, and an endpoint that has failed for 24 hours is marked `failing` until an
+administrator re-enables it. The signing secret is encrypted with
+`TRACKER_CREDENTIAL_ROOT_KEY` and is shown once, at create or rotate.
+
+| Setting | Purpose |
+| --- | --- |
+| Outbound webhooks (`/api/settings/webhooks`) | one signed HTTP `POST` per new event, in log order, with retries and a 30-day delivery history |
+| `PRISM_WEBHOOK_ALLOW_PRIVATE` | permits `http` and private, loopback or link-local targets for a local test receiver (default `false`; production endpoints must be `https` on a public address) |
 
 ## Project-level `.prism.json`
 

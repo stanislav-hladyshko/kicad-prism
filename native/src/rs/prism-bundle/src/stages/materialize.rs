@@ -108,6 +108,12 @@ pub struct FillComparison {
     pub refilled_operations: usize,
     /// Operations present in one and not the other (multiset difference).
     pub differing_operations: usize,
+    /// Saved operations with no identical operation in the refill: the part
+    /// of `differing_operations` a reader can relate to `saved_operations`.
+    /// The `stale-saved-fills` warning should report this instead, but its
+    /// text is part of the pinned bundle bytes, so the change waits for the
+    /// next generator id.
+    pub stale_saved_operations: usize,
 }
 
 impl FillComparison {
@@ -170,6 +176,18 @@ pub fn compare_fills(
         tile,
         max_operations,
     )?)?;
+    Ok(compare_signatures(&saved, &refilled))
+}
+
+/// Count how two multisets of fill signatures differ.
+fn compare_signatures(
+    saved: &BTreeMap<String, usize>,
+    refilled: &BTreeMap<String, usize>,
+) -> FillComparison {
+    let stale_saved = saved
+        .iter()
+        .map(|(key, count)| count.saturating_sub(refilled.get(key).copied().unwrap_or(0)))
+        .sum();
     let differing = saved
         .iter()
         .map(|(key, count)| count.abs_diff(refilled.get(key).copied().unwrap_or(0)))
@@ -180,9 +198,49 @@ pub fn compare_fills(
                 .map(|(_, count)| *count),
         )
         .sum();
-    Ok(FillComparison {
+    FillComparison {
         saved_operations: saved.values().sum(),
         refilled_operations: refilled.values().sum(),
         differing_operations: differing,
-    })
+        stale_saved_operations: stale_saved,
+    }
+}
+
+#[cfg(test)]
+mod fill_comparison_tests {
+    use super::*;
+
+    fn signatures(keys: &[&str]) -> BTreeMap<String, usize> {
+        let mut map = BTreeMap::new();
+        for key in keys {
+            *map.entry((*key).to_owned()).or_insert(0) += 1;
+        }
+        map
+    }
+
+    #[test]
+    fn stale_saved_counts_only_the_saved_side() {
+        // 13 saved, 13 refilled, one shared: 12 stale on each side.
+        let saved_keys: Vec<String> = (0..12).map(|i| format!("old{i}")).collect();
+        let refilled_keys: Vec<String> = (0..12).map(|i| format!("new{i}")).collect();
+        let mut saved: Vec<&str> = saved_keys.iter().map(String::as_str).collect();
+        let mut refilled: Vec<&str> = refilled_keys.iter().map(String::as_str).collect();
+        saved.push("same");
+        refilled.push("same");
+
+        let comparison = compare_signatures(&signatures(&saved), &signatures(&refilled));
+        assert_eq!(comparison.saved_operations, 13);
+        assert_eq!(comparison.refilled_operations, 13);
+        assert_eq!(comparison.differing_operations, 24);
+        assert_eq!(comparison.stale_saved_operations, 12);
+        assert!(!comparison.matches());
+    }
+
+    #[test]
+    fn duplicate_signatures_are_counted_as_a_multiset() {
+        let comparison =
+            compare_signatures(&signatures(&["a", "a", "b"]), &signatures(&["a", "b", "b"]));
+        assert_eq!(comparison.differing_operations, 2);
+        assert_eq!(comparison.stale_saved_operations, 1);
+    }
 }

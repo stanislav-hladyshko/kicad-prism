@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import struct
+import sys
 import threading
 import unicodedata
 import weakref
@@ -119,6 +120,38 @@ def parse_json_member(data: bytes, path: str, limits: Limits = Limits()) -> Any:
     return value
 
 
+def _open_shared(path: Path) -> BinaryIO:
+    """Open ``path`` for reading so another process can still replace or delete it.
+
+    POSIX lets a file be renamed over while it is open. Python's ``open`` on Windows
+    does not share delete access, so ``prism-kicad`` could not rename the next stage's
+    archive over one a reader still holds. This opens it with ``FILE_SHARE_DELETE``.
+    """
+
+    if sys.platform != "win32":
+        return path.open("rb")
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+        wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+    ]
+    generic_read, share_all, open_existing, normal = 0x80000000, 0x1 | 0x2 | 0x4, 3, 0x80
+    handle = kernel32.CreateFileW(str(path), generic_read, share_all, None, open_existing, normal, None)
+    if handle in (None, wintypes.HANDLE(-1).value):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+    except OSError:
+        kernel32.CloseHandle(handle)
+        raise
+    return os.fdopen(descriptor, "rb")
+
+
 class _Snapshot:
     """One open archive file, read by position so concurrent readers share it.
 
@@ -126,7 +159,7 @@ class _Snapshot:
     """
 
     def __init__(self, path: Path) -> None:
-        self._file = path.open("rb")
+        self._file = _open_shared(path)
         self._lock = threading.Lock()
         self._close = weakref.finalize(self, self._file.close)
 

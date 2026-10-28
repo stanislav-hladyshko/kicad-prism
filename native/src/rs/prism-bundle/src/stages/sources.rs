@@ -25,8 +25,6 @@ use crate::limits::{LimitName, Limits};
 use crate::paths::{PathProblem, check_path, first_collision};
 use crate::revision_key::{Category, category_for_name};
 use std::collections::{BTreeMap, BTreeSet};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -126,6 +124,30 @@ fn walk_failure(error: &std::io::Error) -> Failure {
     .argument("source-root")
 }
 
+/// A file name's bytes. On Windows a name that is not UTF-8 becomes `0xFF`, which the
+/// path check refuses, as Linux refuses a non-UTF-8 name.
+#[cfg(unix)]
+fn name_bytes(name: &std::ffi::OsStr) -> Vec<u8> {
+    std::os::unix::ffi::OsStrExt::as_bytes(name).to_vec()
+}
+
+#[cfg(windows)]
+fn name_bytes(name: &std::ffi::OsStr) -> Vec<u8> {
+    name.to_str()
+        .map_or_else(|| vec![0xFF], |text| text.as_bytes().to_vec())
+}
+
+/// The owner-execute bit. Windows has none: a file there is not executable.
+#[cfg(unix)]
+fn is_executable(metadata: &std::fs::Metadata) -> bool {
+    std::os::unix::fs::PermissionsExt::mode(&metadata.permissions()) & 0o100 != 0
+}
+
+#[cfg(windows)]
+fn is_executable(_metadata: &std::fs::Metadata) -> bool {
+    false
+}
+
 struct Walk<'a> {
     excluded: &'a [String],
     found: Vec<(Vec<u8>, std::fs::Metadata, Category)>,
@@ -140,7 +162,8 @@ impl Walk<'_> {
         entries.sort_by_key(std::fs::DirEntry::file_name);
         for entry in entries {
             let name = entry.file_name();
-            let name = name.as_bytes();
+            let name = name_bytes(&name);
+            let name = name.as_slice();
             if name == b".git" {
                 continue;
             }
@@ -218,7 +241,7 @@ impl SourceTree {
                 )
                 .map_err(|failure| failure.at_path(format!("sources/{text}")))?;
             total = total.saturating_add(metadata.len());
-            let executable = metadata.permissions().mode() & 0o100 != 0;
+            let executable = is_executable(&metadata);
             files.insert(
                 text.to_owned(),
                 SourceInfo {

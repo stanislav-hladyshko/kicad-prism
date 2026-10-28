@@ -69,6 +69,26 @@ describe("AssetsPanel", () => {
     expect(save).toBeEnabled();
   });
 
+  it("truncates a long asset name in its own field and keeps it in the tooltip", () => {
+    const longName = "AMD_FBVB900_31x31mm_P1.0mm_30x30";
+    render(
+      <AssetsPanel
+        component={{ ...component, assets: [asset("sym-a", "symbol"), { ...asset("fp-a", "footprint"), target_name: longName }] } as CatalogComponent}
+        canMutate
+        busyAction=""
+        onAttach={vi.fn()}
+        onDetachAsset={vi.fn()}
+        onDownload={vi.fn()}
+        onRegeneratePreviews={vi.fn()}
+        onValidate={vi.fn()}
+        onRepresentationsChanged={vi.fn()}
+      />,
+    );
+    const footprint = screen.getAllByRole("combobox", { name: "Footprint asset" })[0];
+    expect(footprint).toHaveAttribute("title", longName);
+    expect(within(footprint).getByText(longName)).toHaveClass("truncate");
+  });
+
   it("offers no edits to a reader", () => {
     renderPanel(false);
     expect(screen.queryByRole("button", { name: /Detach/ })).not.toBeInTheDocument();

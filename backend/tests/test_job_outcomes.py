@@ -20,8 +20,10 @@ from typing import Any
 from unittest import mock
 
 from app.services import release_studio_build_service as build_service
+from app.services import event_log, release_build_attempts
 from app.services.job_artifact_service import JobArtifactService
 from app.services.kicad_tools import KicadTools
+from app.services.workspace_schema_migrations import WORKSPACE_LEDGER
 from tests.in_memory_jobs import (
     InMemoryJobService,
     ProcessKilled,
@@ -29,6 +31,7 @@ from tests.in_memory_jobs import (
     supervise_exit,
 )
 from tests.kicad_tool_fakes import FakeTool
+from support.postgres import requires_scratch_postgres, scratch_schema
 from tests.release_studio_support import (
     RECORDING_ROOT,
     documents_stub,
@@ -392,6 +395,54 @@ class ReleaseBuildRowFencingTests(unittest.TestCase):
         self.assertEqual((settled["status"], settled["error_code"]), ("failed", "runner_exited"))
         self.assertEqual(self._candidate_status(first["candidate_id"]), "failed")
         self.assertEqual(release_build_attempts.settle_build_job(service.get(job["job_id"])), 0)
+
+@requires_scratch_postgres("the release.candidate_built producer")
+class ReleaseCandidateBuiltEventTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.events = scratch_schema(self, "release_build_events", ledgers=(WORKSPACE_LEDGER,))
+        self.enterContext(mock.patch.object(event_log, "connect", self.events.connection))
+        self.enterContext(
+            mock.patch.object(release_build_attempts, "running_builds_for_job", return_value=[])
+        )
+
+    def _events(self):
+        with self.events.connect() as conn:
+            return conn.execute("SELECT kind, project_id, payload FROM ws_events").fetchall()
+
+    def test_a_completed_build_job_appends_release_candidate_built(self) -> None:
+        job = {
+            "job_id": "job-1",
+            "id": "job-1",
+            "status": "completed",
+            "project_id": None,
+            "result_metadata": {
+                "build_id": "build-1",
+                "commit": "c" * 40,
+                "project_id": "p1",
+            },
+        }
+
+        self.assertEqual(release_build_attempts.settle_build_job(job), 0)
+
+        self.assertEqual(
+            [(event["kind"], event["project_id"]) for event in self._events()],
+            [("release.candidate_built", "p1")],
+        )
+        self.assertEqual(
+            self._events()[0]["payload"],
+            {"buildId": "build-1", "commit": "c" * 40},
+        )
+
+    def test_a_job_that_did_not_complete_appends_nothing(self) -> None:
+        job = {
+            "job_id": "job-1",
+            "status": "failed",
+            "project_id": "p1",
+            "result_metadata": {"build_id": "build-1", "commit": "c" * 40},
+        }
+        self.assertEqual(release_build_attempts.settle_build_job(job), 0)
+        self.assertEqual(self._events(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

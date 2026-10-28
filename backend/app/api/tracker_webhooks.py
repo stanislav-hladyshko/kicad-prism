@@ -6,6 +6,7 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
 
 from app.services.trackers.github_webhooks import (
     MAX_BODY_BYTES,
@@ -16,6 +17,18 @@ from app.services.trackers.providers import webhook_codec
 
 router = APIRouter(prefix="/api/trackers/webhooks", tags=["tracker-webhooks"])
 service = TrackerWebhookService()
+
+
+class WebhookAccepted(BaseModel):
+    """What a stored delivery answers: the inbox row that now waits for the worker."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    ok: bool
+    deliveryId: str
+    event: str
+    created: bool
+    hintCount: int
 
 
 async def _read_body_with_limit(request: Request, max_bytes: int) -> bytes:
@@ -29,7 +42,11 @@ async def _read_body_with_limit(request: Request, max_bytes: int) -> bytes:
     return b"".join(chunks)
 
 
-@router.post("/{provider}/{connector_id}")
+@router.post(
+    "/{provider}/{connector_id}",
+    response_model=WebhookAccepted,
+    summary="Accept a signed tracker webhook delivery into the inbox",
+)
 async def tracker_webhook(provider: str, connector_id: str, request: Request) -> JSONResponse:
     if webhook_codec(provider) is None:
         raise HTTPException(status_code=404, detail="Unknown webhook provider")

@@ -107,6 +107,8 @@ function RepresentationRow({
   };
 
   const busy = !canMutate || saving;
+  const symbolName = symbols.find((asset) => asset.id === symbolId)?.target_name;
+  const footprintName = footprints.find((asset) => asset.id === footprintId)?.target_name;
   return (
     <div className={cn("flex h-11 min-w-[640px] items-center gap-1.5 border-b px-2 last:border-b-0", previewed && "bg-muted/50 shadow-[inset_2px_0_0_hsl(var(--primary))]")}>
       <Button
@@ -121,13 +123,17 @@ function RepresentationRow({
       >
         <Star className={cn("h-3.5 w-3.5", representation.is_default ? "fill-primary text-primary" : "text-muted-foreground")} />
       </Button>
-      <Input aria-label="Representation label" className="h-8 w-40 shrink-0 text-xs" value={label} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
+      <Input aria-label="Representation label" title={label} className="h-8 w-40 shrink-0 text-xs" value={label} onChange={(event) => setLabel(event.target.value)} disabled={busy} />
       <Select value={symbolId || "none"} onValueChange={(value) => setSymbolId(value === "none" ? "" : value)} disabled={busy}>
-        <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs" aria-label="Symbol asset"><SelectValue placeholder="No symbol" /></SelectTrigger>
+        <SelectTrigger size="sm" className="min-w-0 flex-1 basis-0 text-xs" aria-label="Symbol asset" title={symbolName || "No symbol"}>
+          <SelectValue placeholder="No symbol"><span className="block truncate">{symbolName || "No symbol"}</span></SelectValue>
+        </SelectTrigger>
         <SelectContent><SelectItem value="none">No symbol</SelectItem>{symbols.map((asset) => <SelectItem key={asset.id} value={asset.id}>{asset.target_name}</SelectItem>)}</SelectContent>
       </Select>
       <Select value={footprintId || "none"} onValueChange={(value) => setFootprintId(value === "none" ? "" : value)} disabled={busy}>
-        <SelectTrigger size="sm" className="min-w-0 flex-1 text-xs" aria-label="Footprint asset"><SelectValue placeholder="No footprint" /></SelectTrigger>
+        <SelectTrigger size="sm" className="min-w-0 flex-1 basis-0 text-xs" aria-label="Footprint asset" title={footprintName || "No footprint"}>
+          <SelectValue placeholder="No footprint"><span className="block truncate">{footprintName || "No footprint"}</span></SelectValue>
+        </SelectTrigger>
         <SelectContent><SelectItem value="none">No footprint</SelectItem>{footprints.map((asset) => <SelectItem key={asset.id} value={asset.id}>{asset.target_name}</SelectItem>)}</SelectContent>
       </Select>
       <Input aria-label="Display order" title="Display order" type="number" className="h-8 w-14 shrink-0 text-xs" value={order} onChange={(event) => setOrder(event.target.value)} disabled={busy} />

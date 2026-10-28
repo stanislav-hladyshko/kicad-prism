@@ -54,12 +54,22 @@ pub struct InputGuard<'a> {
     pub manifest_sha256: &'a str,
 }
 
+#[cfg(unix)]
 fn same_file(a: &Path, b: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
     match (std::fs::metadata(a), std::fs::metadata(b)) {
         (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
         _ => false,
     }
+}
+
+/// Same volume and file index.
+#[cfg(windows)]
+fn same_file(a: &Path, b: &Path) -> bool {
+    matches!(
+        (process::file_identity(a), process::file_identity(b)),
+        (Some(a), Some(b)) if a == b
+    )
 }
 
 fn manifest_digest(path: &Path, limits: &Limits) -> Option<String> {

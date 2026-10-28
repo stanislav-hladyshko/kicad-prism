@@ -322,6 +322,48 @@ class Settings(PipelineSettings, DesignBundleSettings, SimStudioSettings):
         description="Enable the comment WebSocket gateway; disable during staged rollout to use HTTP refresh fallback.",
     )
 
+    PRISM_MCP_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "The read-only MCP server at /mcp and its OAuth metadata. Off by "
+            "default: agents reach Prism only when an administrator turns it on."
+        ),
+    )
+    PRISM_MCP_OPS_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Admin diagnostics (ADR scripting-and-mcp §11): the /api/ops routes, "
+            "the ops MCP tools and the ops:read/ops:act scopes. Off by default."
+        ),
+    )
+
+    PRISM_EVENT_RETENTION_DAYS: int = Field(
+        default=30,
+        ge=0,
+        description=(
+            "Days the append-only event log behind GET /api/v1/events keeps rows; "
+            "older rows are pruned at startup."
+        ),
+    )
+
+    PRISM_MCP_AUDIT_RETENTION_DAYS: int = Field(
+        default=365,
+        ge=0,
+        description=(
+            "Days the MCP read audit (ws_mcp_audit, behind GET /api/admin/mcp-audit) "
+            "keeps rows; older rows are pruned at startup."
+        ),
+    )
+
+    PRISM_WEBHOOK_ALLOW_PRIVATE: bool = Field(
+        default=False,
+        description=(
+            "Allow outbound webhook targets that resolve to private, loopback or "
+            "link-local addresses, over http as well as https. Off by default; set "
+            "it only for a local test receiver."
+        ),
+    )
+
     TRACKER_CREDENTIAL_ROOT_KEY: SecretStr = Field(default=SecretStr(""))
     TRACKER_CREDENTIAL_ROOT_KEY_ID: str = Field(default="v1")
     TRACKER_CREDENTIAL_PREVIOUS_ROOT_KEY: SecretStr = Field(default=SecretStr(""))
@@ -391,6 +433,17 @@ class Settings(PipelineSettings, DesignBundleSettings, SimStudioSettings):
             "Lifetime for a KiCad agent sign-in token. Long by default because a "
             "desktop agent is signed in once and used for weeks; it is scoped and "
             "revocable, so a leaked token can be killed from the web console."
+        ),
+    )
+
+    PRISM_PAT_MAX_DAYS: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+        description=(
+            "Longest lifetime, in days, a personal access token may be given. A "
+            "token request defaults to 90 days; lower this to cap scripts and CI "
+            "at a shorter rotation period."
         ),
     )
 

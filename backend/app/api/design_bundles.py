@@ -12,7 +12,7 @@ import re
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.api._helpers import get_project_for_role_or_404
 from app.core.errors import caller_errors
@@ -52,7 +52,76 @@ class RegenerateRequest(BaseModel):
         return self
 
 
-@router.get("/{project_id}/design-bundles")
+class BundleCounts(BaseModel):
+    """How many of the project's bundles sit in each state."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    complete: int
+    building: int
+    queued: int
+    failed: int
+
+
+class IncompleteCounts(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    failed: int
+    partial: int
+
+
+class IncompleteRevision(BaseModel):
+    """A complete bundle whose stages failed or were only partial."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    commit: Optional[str]
+    revisionKey: Optional[str]
+    failedStages: list[str]
+    partialStages: list[str]
+    reason: str
+
+
+class FailedBuild(BaseModel):
+    """A bundle whose build failed outright."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    commit: Optional[str]
+    revisionKey: Optional[str]
+    reason: str
+
+
+class DesignBundleStatus(BaseModel):
+    """The bundle counts, alias count, stored size and the incomplete list."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    bundles: dict[str, int]
+    aliases: int
+    storedBytes: int
+    incomplete: IncompleteCounts
+    incompleteRevisions: list[IncompleteRevision]
+    failedBuilds: list[FailedBuild]
+
+
+class RegeneratedBundles(BaseModel):
+    """What a manual regenerate dropped, and the rebuild it queued."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    scope: str
+    commit: Optional[str]
+    removedBundles: int
+    removedAliases: int
+    jobId: Optional[str]
+
+
+@router.get(
+    "/{project_id}/design-bundles",
+    response_model=DesignBundleStatus,
+    summary="The project's design-bundle counts, aliases and stored size",
+)
 async def get_design_bundles(
     project_id: str,
     user: AuthenticatedUser = Depends(require_viewer),
@@ -121,7 +190,12 @@ def _incomplete(bundles: list[dict]) -> list[dict]:
     return found
 
 
-@router.post("/{project_id}/design-bundles/regenerate", dependencies=[Depends(require_designer)])
+@router.post(
+    "/{project_id}/design-bundles/regenerate",
+    dependencies=[Depends(require_designer)],
+    response_model=RegeneratedBundles,
+    summary="Drop the bundles in scope and queue a rebuild that skips reuse",
+)
 async def regenerate_design_bundles(
     project_id: str,
     request: RegenerateRequest,
