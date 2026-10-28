@@ -762,7 +762,7 @@ export function ProjectDetailPage({ user }: { user: User | null }) {
                             active={activeSection === "pipeline"}
                         >
                             <ErrorBoundary label="the pipeline" resetKeys={[projectId]}>
-                                <PipelinePanel pipeline={pipeline} focusStage={focusStage} />
+                                <PipelinePanel pipeline={pipeline} focusStage={focusStage} projectId={projectId} canRerun={canMutateProject} />
                             </ErrorBoundary>
                         </ProjectSectionPanel>
                     )}
