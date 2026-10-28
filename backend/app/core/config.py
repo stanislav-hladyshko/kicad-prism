@@ -530,6 +530,22 @@ class Settings(PipelineSettings, DesignBundleSettings, SimStudioSettings):
             "instead of a fetch, so the workspace shows the branch head without a manual Sync."
         ),
     )
+    PRISM_PIPELINE_RERUN_REPO: str = Field(
+        default="",
+        description="owner/name of the GitHub repository whose workflow redoes a pipeline stage; empty disables the button.",
+    )
+    PRISM_PIPELINE_RERUN_WORKFLOW: str = Field(
+        default="rerun-stage.yml",
+        description="Workflow file that redoes a stage (workflow_dispatch inputs: board, stage).",
+    )
+    PRISM_PIPELINE_RERUN_REF: str = Field(
+        default="master",
+        description="Branch the stage workflow runs on and proposes its pull request against.",
+    )
+    PRISM_PIPELINE_RERUN_TOKEN: str = Field(
+        default="",
+        description="Fine-grained GitHub token for that repository only: Actions read/write, Pull requests read.",
+    )
 
     PRISM_JOB_LEASE_SECONDS: int = Field(
         default=30,

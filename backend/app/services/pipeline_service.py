@@ -137,6 +137,22 @@ def read_pipeline(text: str) -> Optional[dict[str, Any]]:
     return data
 
 
+def board_id(projects: Iterable[Mapping[str, Any]], project_id: str,
+             read_file: Callable[[Path], Optional[str]]) -> Optional[str]:
+    """The pipeline row id (``G4``) of a project the caller sees, or None when its repository has no row for it."""
+
+    project = next((p for p in projects if str(p.get("id")) == project_id and p.get("parent_repo_path")), None)
+    if project is None:
+        return None
+    text = read_file(Path(str(project["parent_repo_path"])) / PIPELINE_FILE)
+    data = read_pipeline(text) if text is not None else None
+    board_dir = str(project.get("relative_path") or ".").strip("/")
+    for row in (data or {}).get("rows") or []:
+        if str(row.get("dir") or "").strip("/") == board_dir:
+            return str(row.get("id") or board_dir)
+    return None
+
+
 def pipelines(projects: Iterable[Mapping[str, Any]], seams: Seams) -> list[dict[str, Any]]:
     """One pipeline per repository that commits the file, limited to the projects the caller sees.
 
